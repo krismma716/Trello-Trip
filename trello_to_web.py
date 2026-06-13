@@ -10,14 +10,11 @@ import concurrent.futures
 # ==========================================
 st.set_page_config(page_title="專屬旅程", page_icon="🌍", layout="wide")
 
-# 🧙‍♂️ 黑魔法：強制隱藏 Streamlit 的 Header, Footer, 和所有的 Padding
+# 🧙‍♂️ 黑魔法：介面全螢幕化 + 懸浮更新按鈕
 st.markdown("""
     <style>
-        /* 隱藏頂部 Fork/Deploy 選單列 */
         header {visibility: hidden;}
-        /* 隱藏底部浮水印 */
         footer {visibility: hidden;}
-        /* 移除兩側多餘的白邊，做到 100% 全螢幕 */
         .block-container {
             padding-top: 0rem !important;
             padding-bottom: 0rem !important;
@@ -25,13 +22,33 @@ st.markdown("""
             padding-right: 0rem !important;
             max-width: 100% !important;
         }
-        /* 取消 iframe 的預設邊框 */
         iframe {
             border: none !important;
             width: 100% !important;
         }
-        /* 隱藏右下角的 Manage App 按鈕 (僅對部分狀態有效) */
         .stDeployButton {display:none;}
+        
+        /* 🚀 讓更新按鈕變成高質感的懸浮按鈕 (Floating Action Button) */
+        div[data-testid="stButton"] {
+            position: fixed;
+            bottom: 30px;
+            right: 20px;
+            z-index: 999999;
+        }
+        div[data-testid="stButton"] button {
+            background-color: #007AFF !important;
+            color: white !important;
+            border-radius: 30px !important;
+            padding: 12px 24px !important;
+            box-shadow: 0 8px 20px rgba(0, 122, 255, 0.4) !important;
+            border: none !important;
+            font-weight: bold !important;
+            font-size: 15px !important;
+            transition: all 0.3s ease !important;
+        }
+        div[data-testid="stButton"] button:active {
+            transform: scale(0.92) !important;
+        }
     </style>
 """, unsafe_allow_html=True)
 
