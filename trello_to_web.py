@@ -20,7 +20,7 @@ st.markdown("""
         }
         iframe { border: none !important; width: 100% !important; }
         .stDeployButton {display:none;}
-        
+
         div[data-testid="stButton"] {
             display: flex;
             justify-content: center;
@@ -50,6 +50,7 @@ except KeyError:
     st.error("❌ 找不到 API 憑證！請確認 Secrets 設定。")
     st.stop()
 
+
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_trello_data():
     def clean_text(text):
@@ -63,8 +64,10 @@ def fetch_trello_data():
         text = clean_text(text)
         text = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight-text">\1</span>', text)
         text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-        text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'<a href="\2" target="_blank" class="action-btn">📍 \1</a>', text)
-        text = re.sub(r'(?<!=")(https?://[^\s<]+)(?!">)', r'<a href="\1" target="_blank" class="action-btn">🔗 點擊連結</a>', text)
+        text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'<a href="\2" target="_blank" class="action-btn">📍 \1</a>',
+                      text)
+        text = re.sub(r'(?<!=")(https?://[^\s<]+)(?!">)',
+                      r'<a href="\1" target="_blank" class="action-btn">🔗 點擊連結</a>', text)
         lines = text.split('\n')
         html_lines, in_list = [], False
         for line in lines:
@@ -103,8 +106,10 @@ def fetch_trello_data():
             pass
         return None
 
-    lists_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/lists", params={'key': API_KEY, 'token': TOKEN})
-    cards_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/cards", params={'key': API_KEY, 'token': TOKEN, 'attachments': 'true'})
+    lists_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/lists",
+                             params={'key': API_KEY, 'token': TOKEN})
+    cards_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/cards",
+                             params={'key': API_KEY, 'token': TOKEN, 'attachments': 'true'})
 
     if lists_res.status_code != 200 or cards_res.status_code != 200:
         return "<div style='text-align:center; padding:50px;'>❌ API 連線失敗。</div>"
@@ -112,7 +117,7 @@ def fetch_trello_data():
     lists = lists_res.json()
     all_cards = cards_res.json()
     cards_by_list = {}
-    
+
     for c in all_cards:
         lid = c['idList']
         if lid not in cards_by_list: cards_by_list[lid] = []
@@ -132,7 +137,8 @@ def fetch_trello_data():
                         break
             if not img_url and attachments:
                 for att in attachments:
-                    if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(('.png', '.jpg', '.jpeg')):
+                    if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(
+                            ('.png', '.jpg', '.jpeg')):
                         img_url = att['url']
                         break
             if not img_url and c.get('cover', {}).get('sharedSourceUrl'):
@@ -145,8 +151,10 @@ def fetch_trello_data():
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
         future_to_url = {executor.submit(download_real_attachment, u): u for u in url_set}
         for future in concurrent.futures.as_completed(future_to_url):
-            try: url_to_base64[future_to_url[future]] = future.result()
-            except Exception: url_to_base64[future_to_url[future]] = None
+            try:
+                url_to_base64[future_to_url[future]] = future.result()
+            except Exception:
+                url_to_base64[future_to_url[future]] = None
 
     days_data, info_data = [], []
     for lst in lists:
@@ -156,7 +164,7 @@ def fetch_trello_data():
         for card in cards:
             card_name = clean_text(card.get("name", ""))
             card_desc = parse_markdown(card.get("desc", "").strip())
-            
+
             target_url = card_to_url.get(card['id'])
             img_src = url_to_base64.get(target_url) if target_url else None
 
@@ -165,7 +173,7 @@ def fetch_trello_data():
             chevron_html = '<div class="chevron"></div>' if has_desc else ''
             onclick_html = 'onclick="toggleCard(this)"' if has_desc else ''
             cursor_style = 'cursor: pointer;' if has_desc else 'cursor: default;'
-            
+
             cards_html += f"""
             <div class="ios-card">
                 <div class="card-trigger" {onclick_html} style="{cursor_style}">
@@ -175,7 +183,7 @@ def fetch_trello_data():
                 <div class="card-body"><div class="card-content"><div class="card-desc">{card_desc}</div></div></div>
             </div>
             """
-            
+
         if not cards_html: cards_html = '<div class="empty-state">🌴 準備中...</div>'
 
         list_id = f"section_{lst['id']}"
@@ -191,7 +199,9 @@ def fetch_trello_data():
                 short_name, date_info, location = list_name.split(' ')[0], "", list_name
                 capsule_subtitle = "行程"
 
-            days_data.append({'id': list_id, 'short_name': short_name, 'subtitle': capsule_subtitle, 'date_info': date_info, 'location': location, 'html': cards_html})
+            days_data.append(
+                {'id': list_id, 'short_name': short_name, 'subtitle': capsule_subtitle, 'date_info': date_info,
+                 'location': location, 'html': cards_html})
         else:
             info_data.append({'id': list_id, 'short_name': list_name, 'html': cards_html})
 
@@ -233,44 +243,44 @@ def fetch_trello_data():
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
-            
+
             ::-webkit-scrollbar {{ display: none; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
             body {{ background-color: #F9FAFC; color: #2D3142; user-select: none; }}
             .app {{ width: 100%; max-width: 500px; margin: 0 auto; background-color: #F9FAFC; min-height: 100vh; overflow-x: hidden; }}
-            
+
             /* 🏝️ 頂部主導航：固定在最上面 */
             .nav-bar {{ background: rgba(249, 250, 252, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 12px; display: flex; justify-content: space-between; align-items: center; }}
             .nav-title {{ font-size: 22px; font-weight: 900; background: linear-gradient(135deg, #FF5A5F 0%, #FF7E67 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.5px; }}
             .tab-switcher {{ display: flex; background: #EFEFF4; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #9094A6; border-radius: 10px; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }}
             .tab-btn.active {{ background: #FFFFFF; color: #FF5A5F; box-shadow: 0 4px 10px rgba(0,0,0,0.06); transform: scale(1.02); }}
-            
+
             /* 💊 子導航膠囊列：這就是你要的凍結窗格！ */
             /* 讓它貼在 top: 68px (剛好在導航列下方)，並加上毛玻璃效果與底線，區隔內容 */
             .sub-nav-wrapper {{ background: rgba(249, 250, 252, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 68px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.05); }}
             .pill-scroll {{ display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
-            
+
             /* 解決換行問題：加寬 min-width，並且強制文字不換行 */
             .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 8px 18px; background: #FFFFFF; border-radius: 18px; min-width: 68px; cursor: pointer; transition: 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.02); border: 1px solid #F0F0F5; }}
             .pill-title {{ font-size: 16px; font-weight: 800; color: #5B5F71; }}
-            
+
             /* 讓 subtitle 超過 4 個字會變成點點點，絕對不會換行破壞版面 */
             .pill-subtitle {{ font-size: 10px; font-weight: 600; color: #9094A6; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 50px; text-align: center; }}
-            
+
             .sub-pill.active {{ background: linear-gradient(135deg, #FF7E67 0%, #FF5A5F 100%); box-shadow: 0 6px 16px rgba(255, 90, 95, 0.3); border: none; transform: translateY(-2px); }}
             .sub-pill.active .pill-title {{ color: #FFFFFF; }}
             .sub-pill.active .pill-subtitle {{ color: rgba(255,255,255,0.8); }}
-            
+
             .info-pill {{ flex-direction: row; padding: 10px 20px; }}
             .info-pill .pill-subtitle {{ display: none; }}
             .info-pill .pill-title {{ font-size: 14px; font-weight: 700; }}
-            
+
             .content-area {{ padding: 24px 20px; }}
             .main-tab {{ display: none; }}
             .main-tab.active {{ display: block; animation: fadeUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
             @keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
-            
+
             .city-header {{ margin-bottom: 30px; padding-left: 4px; margin-top: 5px; }}
             .date-row {{ display: flex; align-items: center; margin-bottom: 8px; }}
             .city-date {{ font-size: 13px; font-weight: 800; color: #FF7E67; letter-spacing: 1px; }}
@@ -287,12 +297,12 @@ def fetch_trello_data():
             .chevron::after {{ content: ''; width: 8px; height: 8px; border-right: 3px solid #FF5A5F; border-bottom: 3px solid #FF5A5F; transform: translateY(-2px) rotate(45deg); transition: 0.3s; }}
             .open .chevron {{ transform: rotate(180deg); background: #FF5A5F; box-shadow: 0 4px 10px rgba(255, 90, 95, 0.3); }}
             .open .chevron::after {{ border-color: #FFFFFF; transform: translateY(2px) rotate(45deg); }}
-            
+
             .card-body {{ display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
             .card-body.open {{ grid-template-rows: 1fr; border-top: 1px dashed #F0F0F5; }}
             .card-content {{ overflow: hidden; }}
             .card-desc {{ padding: 0 22px 26px; font-size: 15px; color: #5B5F71; line-height: 1.7; word-wrap: break-word; margin-top: 18px; user-select: text; }}
-            
+
             .custom-ul {{ margin: 12px 0 12px 24px; padding: 0; }}
             .custom-ul li {{ margin-bottom: 10px; list-style-type: none; position: relative; color: #5B5F71; }}
             .custom-ul li::before {{ content: '✨'; position: absolute; left: -22px; font-size: 12px; top: 2px; }}
@@ -330,14 +340,14 @@ def fetch_trello_data():
                     <div class="tab-btn" onclick="switchMainTab('tab-tools')">工具</div>
                 </div>
             </div>
-            
+
             <div id="nav-itinerary" class="sub-nav-wrapper"><div class="pill-scroll">{day_pills_html}</div></div>
             <div id="nav-info" class="sub-nav-wrapper" style="display: none;"><div class="pill-scroll">{info_pills_html}</div></div>
-            
+
             <div class="content-area">
                 <div id="tab-itinerary" class="main-tab active">{day_contents_html}</div>
                 <div id="tab-info" class="main-tab">{info_contents_html}</div>
-                
+
                 <div id="tab-tools" class="main-tab">
                     <div class="city-header">
                         <span class="city-date">Calculator</span>
@@ -388,7 +398,7 @@ def fetch_trello_data():
                 event.target.classList.add('active');
                 document.querySelectorAll('.main-tab').forEach(c => c.classList.remove('active'));
                 document.getElementById(tabId).classList.add('active');
-                
+
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
                 window.scrollTo(0,0);
@@ -402,7 +412,7 @@ def fetch_trello_data():
                 mainTab.querySelectorAll('.' + contentClass).forEach(c => c.style.display = 'none');
                 document.getElementById(targetId).style.display = 'block';
                 element.scrollIntoView({{ behavior: 'smooth', block: 'nearest', inline: 'center' }});
-                
+
                 // 💡 計算導航列高度，讓畫面捲動到剛好標題的位置
                 const offset = 140; 
                 const elementPosition = document.getElementById(targetId).getBoundingClientRect().top;
@@ -431,7 +441,7 @@ def fetch_trello_data():
                 "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}},
                 "慕尼黑": {{lat: 48.135, lon: 11.58}}
             }};
-            
+
             function getWeatherEmoji(code) {{
                 if(code === 0) return "☀️";
                 if(code >= 1 && code <= 3) return "⛅";
@@ -543,6 +553,7 @@ def fetch_trello_data():
     """
     return html_content
 
+
 # ==========================================
 # 3. Streamlit 渲染
 # ==========================================
@@ -553,5 +564,5 @@ components.html(final_html, height=1400, scrolling=True)
 
 # 🤫 把更新按鈕變成隱形的浮水印文字 (滑到最底才看得到)
 if st.button("↻ 同步資料"):
-    fetch_trello_data.clear() 
+    fetch_trello_data.clear()
     st.rerun()
