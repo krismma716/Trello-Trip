@@ -10,8 +10,10 @@ import concurrent.futures
 # ==========================================
 st.set_page_config(page_title="奧捷德匈 專屬旅程", page_icon="✈️", layout="wide")
 
+# 💰 你的 LightSplit 網址
 LIGHTSPLIT_URL = "https://liff.line.me/1655320992-Y8GowEpw/g/f23GCF87vCLRRuMLKRa5zJ"
-TRIP_START_DATE = "2026-09-11T23:45:00+08:00"  # 已加上台灣時區
+# ⏳ 你的出發日期 (已加上台灣時區 +08:00 保證跨國精準倒數)
+TRIP_START_DATE = "2026-09-11T23:45:00+08:00"
 
 st.markdown("""
     <style>
@@ -20,6 +22,7 @@ st.markdown("""
         .block-container { max-width: 100% !important; }
         iframe { border: none !important; width: 100% !important; height: 100vh !important; display: block !important; }
 
+        /* 🤫 極度隱形的更新按鈕 (右下角的小 ↻) */
         div[data-testid="stButton"] { position: fixed !important; bottom: 5px !important; right: 8px !important; z-index: 999999 !important; }
         div[data-testid="stButton"] button { background-color: transparent !important; color: rgba(0,0,0,0.1) !important; border: none !important; box-shadow: none !important; padding: 5px !important; min-height: 0 !important; height: auto !important; transition: all 0.3s ease !important; }
         div[data-testid="stButton"] button p { font-size: 16px !important; margin: 0 !important; }
@@ -242,35 +245,41 @@ def fetch_trello_data():
 
             :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
-            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; height: 74px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            /* 導航列 */
+            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: -webkit-sticky; position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; height: 74px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .nav-title {{ font-size: 22px; font-weight: 900; color: var(--primary); letter-spacing: 0.5px; }}
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
             .tab-btn.active {{ background: #FFFFFF; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); }}
 
-            .countdown-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
+            /* ⏳ 智慧管家 Widget */
+            .widget-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
             .cd-mode {{ display: flex; flex-direction: column; align-items: center; width: 100%; }}
             .cd-title {{ font-size: 13px; font-weight: 700; color: var(--text-sub); margin-bottom: 12px; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }}
             .cd-timer {{ display: flex; gap: 12px; }}
             .cd-box {{ display: flex; flex-direction: column; align-items: center; justify-content: center; }}
             .cd-num {{ font-size: 32px; font-weight: 900; color: var(--text-main); line-height: 1; }}
             .cd-label {{ font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; margin-top: 4px; }}
+
             .journey-mode {{ display: none; flex-direction: column; align-items: center; width: 100%; text-align: center; animation: fadeIn 0.8s ease; }}
             .journey-greeting {{ font-size: 18px; font-weight: 800; color: var(--primary); margin-bottom: 6px; }}
             .journey-sub {{ font-size: 13px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }}
-            .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; }}
+            .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; }}
 
-            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            /* 💊 膠囊凍結窗格 */
+            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: -webkit-sticky; position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
             .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.2s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
             .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
             .pill-subtitle {{ font-size: 10px; font-weight: 700; color: var(--text-sub); margin-top: 2px; white-space: nowrap; transition: 0.2s; }}
             .sub-pill.active {{ background: var(--primary); border-color: var(--primary); box-shadow: 0 8px 20px rgba(255, 107, 107, 0.25); transform: translateY(-2px); }}
             .sub-pill.active .pill-title, .sub-pill.active .pill-subtitle {{ color: #FFFFFF; }}
+
             .info-pill {{ flex-direction: row; padding: 10px 20px; white-space: nowrap; width: auto; min-width: 0; }}
             .info-pill .pill-subtitle {{ display: none; }}
             .info-pill .pill-title {{ font-size: 14px; font-weight: 700; display: block; }}
 
+            /* 內容區 */
             .content-area {{ padding: 24px 20px; }}
             .main-tab {{ display: none; }}
             .main-tab.active {{ display: block; animation: fadeUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
@@ -284,6 +293,7 @@ def fetch_trello_data():
             .city-title {{ font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-main); }}
             .highlight-title {{ color: var(--primary); }}
 
+            /* 💸 分帳卡片 */
             .split-card {{ background: linear-gradient(135deg, #1E2022 0%, #374151 100%); border-radius: 20px; padding: 20px; display: flex; align-items: center; color: white; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; }}
             .split-card:active {{ transform: scale(0.96); }}
             .split-icon {{ font-size: 24px; margin-right: 16px; background: rgba(255,255,255,0.15); width: 50px; height: 50px; border-radius: 14px; display: flex; justify-content: center; align-items: center; }}
@@ -292,12 +302,10 @@ def fetch_trello_data():
             .split-desc {{ font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); }}
             .split-arrow {{ font-size: 16px; font-weight: 900; background: #FFFFFF; color: #1E2022; width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; }}
 
+            /* 🃏 行程卡片 */
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
-
-            /* 🚀 終極修復：原生自適應圖片，不裁切、不壓扁！ */
             .card-cover-img {{ width: 100%; height: auto; display: block; border-bottom: 1px solid var(--border-color); background-color: #F8F9FA; }}
-
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
             .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); }}
 
@@ -311,6 +319,7 @@ def fetch_trello_data():
             .card-content {{ overflow: hidden; }}
             .card-desc {{ padding: 0 20px 24px; font-size: 15px; color: var(--text-sub); line-height: 1.7; word-wrap: break-word; margin-top: 16px; user-select: text; }}
 
+            /* 📝 打勾清單 */
             .checklist-group {{ background: #FFFFFF; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid var(--border-color); }}
             .checklist-item {{ display: flex; align-items: flex-start; padding: 16px 20px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: 0.2s; background: #FFFFFF; }}
             .checklist-item:active {{ background: var(--bg-color); }}
@@ -331,6 +340,7 @@ def fetch_trello_data():
             .action-btn:active {{ transform: scale(0.95); }}
             .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 15px; font-weight: 500; }}
 
+            /* 🧮 計算機 */
             .calc-wrapper {{ background: #FFFFFF; border-radius: 24px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); border: 1px solid var(--border-color); }}
             .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 20px; }}
             .currency-badge {{ position: absolute; top: 16px; left: 16px; background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
@@ -375,8 +385,8 @@ def fetch_trello_data():
                 <div id="journey-mode" class="journey-mode">
                     <div id="journey-greeting" class="journey-greeting">✨ 旅程正式展開！</div>
                     <div class="journey-sub">
-                        <span id="journey-location">目前位置分析中...</span>
-                        <span id="journey-weather" class="journey-weather-badge">--</span>
+                        <span id="journey-location">出發準備中...</span>
+                        <span id="journey-weather" class="journey-weather-badge"></span>
                     </div>
                 </div>
             </div>
@@ -437,6 +447,57 @@ def fetch_trello_data():
         </div>
 
         <script>
+            // ⛅️ 專業天氣雷達 (共用)
+            const coords = {{
+                "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
+                "薩爾斯堡": {{lat: 47.809, lon: 13.04}}, "哈修塔特": {{lat: 47.562, lon: 13.64}},
+                "布達佩斯": {{lat: 47.497, lon: 19.04}}, "庫倫洛夫": {{lat: 48.812, lon: 14.31}},
+                "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}}, "慕尼黑": {{lat: 48.135, lon: 11.58}}
+            }};
+
+            function getWeatherEmoji(code) {{
+                if(code === 0) return "☀️"; if(code <= 3) return "⛅"; if(code <= 48) return "🌫️";
+                if(code <= 67) return "🌧️"; if(code <= 77) return "❄️"; if(code <= 82) return "🌨️";
+                if(code >= 95) return "⛈️"; return "🌡️";
+            }}
+
+            function updateWeatherBadge(badgeElement, targetCoord) {{
+                if (!targetCoord || !badgeElement) return;
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&current_weather=true`)
+                    .then(res => res.json())
+                    .then(data => {{
+                        if(data && data.current_weather) {{
+                            let temp = Math.round(data.current_weather.temperature);
+                            let emoji = getWeatherEmoji(data.current_weather.weathercode);
+                            badgeElement.innerHTML = `${{emoji}} ${{temp}}°C`;
+                            badgeElement.style.display = 'inline-block';
+                        }}
+                    }}).catch(() => {{ badgeElement.style.display = 'none'; }});
+            }}
+
+            // 初始化卡片天氣
+            document.querySelectorAll('.day-content').forEach(day => {{
+                let loc = day.getAttribute('data-location');
+                if(!loc) return;
+                let targetCoord = null;
+                for (let [zh, c] of Object.entries(coords)) {{
+                    if (loc.includes(zh)) {{ targetCoord = c; break; }}
+                }}
+                let badge = day.querySelector('.weather-badge');
+                if (targetCoord && badge) updateWeatherBadge(badge, targetCoord);
+            }});
+
+            function updateJourneyWeather(cityName) {{
+                let targetCoord = coords[cityName];
+                let journeyBadge = document.getElementById('journey-weather');
+                if (targetCoord && journeyBadge) {{
+                    updateWeatherBadge(journeyBadge, targetCoord);
+                }} else if (journeyBadge) {{
+                    journeyBadge.style.display = 'none';
+                }}
+            }}
+
+            // ⏳ 動態管家邏輯
             const targetDate = new Date("{TRIP_START_DATE}").getTime();
             const widgetWrapper = document.getElementById('countdown-widget');
             const cdMode = document.getElementById('cd-mode');
@@ -465,6 +526,7 @@ def fetch_trello_data():
 
                     document.getElementById('journey-greeting').innerText = greeting;
                     document.getElementById('journey-location').innerText = currentActiveCity;
+                    updateJourneyWeather(currentActiveCity);
                     return;
                 }}
 
@@ -474,11 +536,13 @@ def fetch_trello_data():
                 document.getElementById('cd-sec').innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
             }}, 1000);
 
+            // 分頁與互動邏輯
             function switchMainTab(tabId) {{
                 document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
                 event.target.classList.add('active');
                 document.querySelectorAll('.main-tab').forEach(c => c.classList.remove('active'));
                 document.getElementById(tabId).classList.add('active');
+
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
                 toggleWidgetVisibility(tabId);
@@ -501,6 +565,7 @@ def fetch_trello_data():
                         if (loc.includes(zh)) {{ currentActiveCity = zh; break; }}
                     }}
                 }}
+                updateJourneyWeather(currentActiveCity);
 
                 const offset = contentClass.includes('day') ? 250 : 145; 
                 const elementPosition = targetContent.getBoundingClientRect().top;
@@ -524,49 +589,11 @@ def fetch_trello_data():
 
             function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
 
-            const coords = {{
-                "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
-                "薩爾斯堡": {{lat: 47.809, lon: 13.04}}, "哈修塔特": {{lat: 47.562, lon: 13.64}},
-                "布達佩斯": {{lat: 47.497, lon: 19.04}}, "庫倫洛夫": {{lat: 48.812, lon: 14.31}},
-                "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}}, "慕尼黑": {{lat: 48.135, lon: 11.58}}
-            }};
-            function getWeatherEmoji(code) {{
-                if(code===0) return "☀️"; if(code<=3) return "⛅"; if(code<=48) return "🌫️";
-                if(code<=67) return "🌧️"; if(code<=77) return "❄️"; if(code<=82) return "🌨️";
-                if(code>=95) return "⛈️"; return "🌡️";
-            }}
-            document.querySelectorAll('.day-content').forEach(day => {{
-                let loc = day.getAttribute('data-location');
-                if(!loc) return;
-                let targetCoord = null;
-                for (let [zh, c] of Object.entries(coords)) {{
-                    if (loc.includes(zh)) {{ targetCoord = c; break; }}
-                }}
-                if (targetCoord) {{
-                    fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&current_weather=true`)
-                        .then(res => res.json())
-                        .then(data => {{
-                            if(data && data.current_weather) {{
-                                let temp = Math.round(data.current_weather.temperature);
-                                let emoji = getWeatherEmoji(data.current_weather.weathercode);
-                                let badge = day.querySelector('.weather-badge');
-                                badge.innerHTML = `${{emoji}} ${{temp}}°C`;
-                                badge.style.display = 'inline-block';
-
-                                // 同步更新管家天氣
-                                if (day.style.display === 'block') {{
-                                    let journeyBadge = document.getElementById('journey-weather');
-                                    journeyBadge.innerHTML = `${{emoji}} ${{temp}}°C`;
-                                    journeyBadge.style.display = 'inline-block';
-                                }}
-                            }}
-                        }}).catch(() => {{}});
-                }}
-            }});
-
+            // 🧮 匯率引擎
             let currentFormula = "";
             let rates = {{ 'EUR': 34.50, 'CZK': 1.35, 'HUF': 0.088 }};
             let isResult = false;
+
             fetch('https://open.er-api.com/v6/latest/TWD')
                 .then(res => res.json())
                 .then(data => {{
@@ -576,7 +603,7 @@ def fetch_trello_data():
                         updateCalc();
                     }}
                 }}).catch(() => {{
-                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用預設匯率`;
+                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用安全預設匯率`;
                 }});
 
             function pressKey(key) {{
@@ -605,7 +632,7 @@ def fetch_trello_data():
                     isResult = false;
                     displayDiv.innerText = currentFormula;
                 }}
-                if(currentFormula.length > 12) {{ displayDiv.style.fontSize = "30px"; }} else {{ displayDiv.style.fontSize = "40px"; }}
+                if(currentFormula.length > 12) {{ displayDiv.style.fontSize = "30px"; }} else {{ displayDiv.style.fontSize = "42px"; }}
                 updateCalc();
             }}
 
@@ -635,7 +662,7 @@ def fetch_trello_data():
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
-components.html(final_html, height=1200, scrolling=True)
+components.html(final_html, height=850, scrolling=True)
 
 if st.button("↻"):
     fetch_trello_data.clear()
