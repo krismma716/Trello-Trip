@@ -6,45 +6,34 @@ import base64
 import concurrent.futures
 
 # ==========================================
-# 0. 介面設定與 iOS 終極除蟲 CSS
+# 0. 介面設定
 # ==========================================
 st.set_page_config(page_title="奧捷德匈 專屬旅程", page_icon="✈️", layout="wide")
 
 LIGHTSPLIT_URL = "https://liff.line.me/1655320992-Y8GowEpw/g/f23GCF87vCLRRuMLKRa5zJ" 
-TRIP_START_DATE = "2026-09-11T23:45:00+08:00" 
+TRIP_START_DATE = "2026-09-11T23:45:00+08:00"
 
-# 🍏 針對 iOS Safari 開發的終極佈局解藥
 st.markdown("""
     <style>
-        /* 徹底隱藏 Streamlit 所有官方 UI 與干擾物 (包含右下角紅底選單) */
-        header {display: none !important;} 
-        footer {display: none !important;} 
-        .stDeployButton {display: none !important;}
-        #MainMenu {display: none !important;}
+        header {visibility: hidden;} 
+        footer {visibility: hidden;} 
+        .stDeployButton {display:none;}
+        #MainMenu {display:none;}
         
-        /* 🔐 鎖死母網頁：採用 100dvh 動態高度解決 Safari 網址列卡死問題，並關閉橡皮筋回彈 */
-        html, body, [data-testid="stAppViewContainer"], .main, .block-container { 
-            overflow: hidden !important; 
-            margin: 0 !important; 
-            padding: 0 !important; 
-            height: 100dvh !important; 
-            overscroll-behavior: none !important; /* 🚫 殺死 iOS 往下拉的黑屏特效 */
+        /* 🚨 拔除鎖死設定，釋放母網頁的滾動權力 */
+        .block-container {
+            padding: 0 !important;
+            max-width: 100% !important;
         }
-        .block-container { max-width: 100% !important; }
         
-        /* 強制 iframe 完全接管螢幕，不留任何讓母網頁滾動的縫隙 */
+        /* iframe 不再限制高度 100vh，而是讓 JS 動態撐開 */
         iframe { 
             border: none !important; 
             width: 100vw !important; 
-            height: 100dvh !important; 
             display: block !important; 
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            z-index: 9999 !important;
         }
         
-        /* 隱形更新按鈕 (層級拉到最高，確保蓋在 iframe 上面) */
+        /* 隱形更新按鈕 */
         div[data-testid="stButton"] { 
             position: fixed !important; bottom: 5px !important; right: 5px !important; z-index: 999999 !important; 
         }
@@ -259,25 +248,17 @@ def fetch_trello_data():
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Noto+Sans+TC:wght@500;700;900&display=swap');
             ::-webkit-scrollbar {{ display: none; }}
             
-            /* 🍏 iOS 終極滑動解藥 */
-            html, body {{ 
-                height: 100dvh; 
-                overflow-x: hidden; 
-                overflow-y: auto; 
-                -webkit-overflow-scrolling: touch; 
-                overscroll-behavior-y: none; /* 🚫 防止黑屏回彈 */
-                background-color: #F8F9FA; 
-                color: #1E2022; 
-                user-select: none; 
-            }}
+            /* 🚫 解開網頁封印：不再設定 height 100% 和 overflow hidden，讓內容自然撐開 */
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
+            body {{ background-color: #F8F9FA; color: #1E2022; user-select: none; }}
             
-            .app {{ width: 100%; max-width: 500px; margin: 0 auto; min-height: 100dvh; padding-bottom: 80px; position: relative; }}
+            /* 讓 App 的底色與邊界自然延伸 */
+            .app {{ width: 100%; max-width: 500px; margin: 0 auto; background-color: #F8F9FA; min-height: 100vh; padding-bottom: 80px; position: relative; }}
             
             :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
             /* 導航 */
-            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; height: 74px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .nav-title {{ font-size: 22px; font-weight: 900; color: var(--primary); letter-spacing: 0.5px; }}
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
@@ -333,6 +314,7 @@ def fetch_trello_data():
             .card-cover-img {{ width: 100%; height: auto; display: block; border-bottom: 1px solid var(--border-color); background-color: #F8F9FA; }}
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
             .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); }}
+            
             .chevron {{ width: 28px; height: 28px; background: var(--primary-light); border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: 0.4s ease; flex-shrink: 0; }}
             .chevron::after {{ content: ''; width: 7px; height: 7px; border-right: 2px solid var(--primary); border-bottom: 2px solid var(--primary); transform: translateY(-2px) rotate(45deg); transition: 0.3s; }}
             .open .chevron {{ transform: rotate(180deg); background: var(--primary); box-shadow: 0 4px 10px rgba(255, 107, 107, 0.3); }}
@@ -363,7 +345,7 @@ def fetch_trello_data():
             .action-btn:active {{ transform: scale(0.95); }}
             .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 15px; font-weight: 500; }}
 
-            /* 計算機 */
+            /* 🧮 計算機 */
             .calc-wrapper {{ background: #FFFFFF; border-radius: 24px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); border: 1px solid var(--border-color); }}
             .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 20px; }}
             .currency-badge {{ position: absolute; top: 16px; left: 16px; background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
@@ -469,18 +451,92 @@ def fetch_trello_data():
         </div>
 
         <script>
-            // 天氣
+            // 🚀 關鍵解藥：動態回報 iframe 高度給 Streamlit，撐開母網頁！
+            function updateIframeHeight() {{
+                const height = document.documentElement.scrollHeight;
+                window.parent.postMessage({{
+                    isStreamlitMessage: true,
+                    type: "setFrameHeight",
+                    height: height
+                }}, "*");
+            }}
+
+            // 當畫面有任何變動（點擊選單、展開卡片）時，重新計算並通報高度
+            const observer = new MutationObserver(updateIframeHeight);
+            observer.observe(document.body, {{ childList: true, subtree: true, attributes: true }});
+            
+            // 頁面載入時也通報一次
+            window.addEventListener('load', updateIframeHeight);
+
+            // ===================================
+            // 剩餘的 JS 邏輯完全相同
+            // ===================================
+            function switchMainTab(tabId) {{
+                document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+                event.target.classList.add('active');
+                document.querySelectorAll('.main-tab').forEach(c => c.classList.remove('active'));
+                document.getElementById(tabId).classList.add('active');
+                document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
+                document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
+                window.scrollTo(0,0);
+                setTimeout(updateIframeHeight, 100); // 切換後更新高度
+            }}
+
+            function switchSubTab(targetId, element, contentClass) {{
+                const parentNav = element.closest('.pill-scroll');
+                parentNav.querySelectorAll('.sub-pill').forEach(p => p.classList.remove('active'));
+                element.classList.add('active');
+                const mainTab = document.getElementById(contentClass.includes('day') ? 'tab-itinerary' : 'tab-info');
+                mainTab.querySelectorAll('.' + contentClass).forEach(c => c.style.display = 'none');
+                
+                const targetContent = document.getElementById(targetId);
+                targetContent.style.display = 'block';
+                
+                let loc = targetContent.getAttribute('data-location');
+                if (loc) {{
+                    for (let zh of Object.keys(coords)) {{
+                        if (loc.includes(zh)) {{ currentActiveCity = zh; break; }}
+                    }}
+                }}
+                updateJourneyWeather(currentActiveCity);
+                
+                const offset = contentClass.includes('day') ? 250 : 145; 
+                const elementPosition = targetContent.getBoundingClientRect().top;
+                const offsetPosition = elementPosition + window.pageYOffset - offset;
+                window.scrollTo({{ top: offsetPosition, behavior: 'smooth' }});
+                setTimeout(updateIframeHeight, 100); // 切換後更新高度
+            }}
+
+            function toggleCard(triggerElement) {{
+                const card = triggerElement.closest('.ios-card');
+                const body = card.querySelector('.card-body');
+                const chevron = card.querySelector('.chevron');
+                if (!card.querySelector('.card-desc').innerHTML.trim()) return;
+                if (body.classList.contains('open')) {{
+                    body.classList.remove('open');
+                    triggerElement.classList.remove('open');
+                }} else {{
+                    body.classList.add('open');
+                    triggerElement.classList.add('open');
+                }}
+                setTimeout(updateIframeHeight, 400); // 展開動畫結束後更新高度
+            }}
+
+            function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
+
             const coords = {{
                 "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
                 "薩爾斯堡": {{lat: 47.809, lon: 13.04}}, "哈修塔特": {{lat: 47.562, lon: 13.64}},
                 "布達佩斯": {{lat: 47.497, lon: 19.04}}, "庫倫洛夫": {{lat: 48.812, lon: 14.31}},
                 "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}}, "慕尼黑": {{lat: 48.135, lon: 11.58}}
             }};
+            
             function getWeatherEmoji(code) {{
                 if(code === 0) return "☀️"; if(code <= 3) return "⛅"; if(code <= 48) return "🌫️";
                 if(code <= 67) return "🌧️"; if(code <= 77) return "❄️"; if(code <= 82) return "🌨️";
                 if(code >= 95) return "⛈️"; return "🌡️";
             }}
+
             function updateWeatherBadge(badgeElement, targetCoord) {{
                 if (!targetCoord || !badgeElement) return;
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&current_weather=true`)
@@ -516,7 +572,6 @@ def fetch_trello_data():
                 }}
             }}
 
-            // 管家與倒數
             const targetDate = new Date("{TRIP_START_DATE}").getTime();
             const widgetWrapper = document.getElementById('countdown-widget');
             const cdMode = document.getElementById('cd-mode');
@@ -555,59 +610,6 @@ def fetch_trello_data():
                 document.getElementById('cd-sec').innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
             }}, 1000);
 
-            // 分頁與互動邏輯
-            function switchMainTab(tabId) {{
-                document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
-                event.target.classList.add('active');
-                document.querySelectorAll('.main-tab').forEach(c => c.classList.remove('active'));
-                document.getElementById(tabId).classList.add('active');
-                document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
-                document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
-                toggleWidgetVisibility(tabId);
-                window.scrollTo(0,0);
-            }}
-
-            function switchSubTab(targetId, element, contentClass) {{
-                const parentNav = element.closest('.pill-scroll');
-                parentNav.querySelectorAll('.sub-pill').forEach(p => p.classList.remove('active'));
-                element.classList.add('active');
-                const mainTab = document.getElementById(contentClass.includes('day') ? 'tab-itinerary' : 'tab-info');
-                mainTab.querySelectorAll('.' + contentClass).forEach(c => c.style.display = 'none');
-                
-                const targetContent = document.getElementById(targetId);
-                targetContent.style.display = 'block';
-                
-                let loc = targetContent.getAttribute('data-location');
-                if (loc) {{
-                    for (let zh of Object.keys(coords)) {{
-                        if (loc.includes(zh)) {{ currentActiveCity = zh; break; }}
-                    }}
-                }}
-                updateJourneyWeather(currentActiveCity);
-                
-                const offset = contentClass.includes('day') ? 250 : 145; 
-                const elementPosition = targetContent.getBoundingClientRect().top;
-                const offsetPosition = elementPosition + window.pageYOffset - offset;
-                window.scrollTo({{ top: offsetPosition, behavior: 'smooth' }});
-            }}
-
-            function toggleCard(triggerElement) {{
-                const card = triggerElement.closest('.ios-card');
-                const body = card.querySelector('.card-body');
-                const chevron = card.querySelector('.chevron');
-                if (!card.querySelector('.card-desc').innerHTML.trim()) return;
-                if (body.classList.contains('open')) {{
-                    body.classList.remove('open');
-                    triggerElement.classList.remove('open');
-                }} else {{
-                    body.classList.add('open');
-                    triggerElement.classList.add('open');
-                }}
-            }}
-
-            function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
-
-            // 🧮 匯率
             let currentFormula = "";
             let rates = {{ 'EUR': 34.50, 'CZK': 1.35, 'HUF': 0.088 }};
             let isResult = false;
@@ -620,7 +622,7 @@ def fetch_trello_data():
                         updateCalc();
                     }}
                 }}).catch(() => {{
-                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用安全預設匯率`;
+                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用預設匯率`;
                 }});
 
             function pressKey(key) {{
@@ -673,13 +675,13 @@ def fetch_trello_data():
     return html_content
 
 # ==========================================
-# 3. Streamlit 渲染
+# 3. Streamlit 渲染 (🚀 重大改變：高度自動適應)
 # ==========================================
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
-# ⚠️ 拔除 Streamlit 的 scrolling=True，改用 HTML body 內部滾動機制！
-components.html(final_html, height=1200, scrolling=False)
+# 🚀 拔掉寫死的高度，讓 JS 傳回來的真實高度撐開 iframe，完美融合 Safari 網頁！
+components.html(final_html, height=10000, scrolling=False)
 
 if st.button("↻"):
     fetch_trello_data.clear() 
