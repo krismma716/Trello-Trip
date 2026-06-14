@@ -6,7 +6,7 @@ import base64
 import concurrent.futures
 
 # ==========================================
-# 0. 介面設定
+# 0. 介面設定與 iOS 終極除蟲 CSS
 # ==========================================
 st.set_page_config(page_title="奧捷德匈 專屬旅程", page_icon="✈️", layout="wide")
 
@@ -15,29 +15,47 @@ TRIP_START_DATE = "2026-09-11T23:45:00+08:00"
 
 st.markdown("""
     <style>
-        header {visibility: hidden;} 
-        footer {visibility: hidden;} 
-        .stDeployButton {display:none;}
-        #MainMenu {display:none;}
+        /* 徹底隱藏 Streamlit 所有官方 UI */
+        header {display: none !important;} 
+        footer {display: none !important;} 
+        .stDeployButton {display: none !important;}
+        #MainMenu {display: none !important;}
         
-        .block-container {
-            padding: 0 !important;
-            max-width: 100% !important;
+        /* 🍏 蘋果完美解藥 1：把母網頁底色改成跟 App 一樣，徹底消滅黑屏！ */
+        [data-testid="stAppViewContainer"] {
+            background-color: #F8F9FA !important;
         }
         
+        /* 🍏 蘋果完美解藥 2：鎖死母網頁，但讓內部 iframe 佔滿螢幕 */
+        html, body, .main, .block-container { 
+            overflow: hidden !important; 
+            margin: 0 !important; 
+            padding: 0 !important; 
+            height: 100dvh !important; /* 使用動態高度，完美避開 Safari 網址列 */
+        }
+        .block-container { max-width: 100% !important; }
+        
+        /* 讓 iframe 變成全螢幕，內部自然滾動，絕不當機 */
         iframe { 
+            position: absolute !important;
+            top: 0 !important;
+            left: 0 !important;
             border: none !important; 
             width: 100vw !important; 
+            height: 100dvh !important; 
             display: block !important; 
+            z-index: 1 !important;
         }
         
+        /* 🤫 隱形更新按鈕 (右下角的小 ↻) */
         div[data-testid="stButton"] { 
             position: fixed !important; bottom: 5px !important; right: 5px !important; z-index: 999999 !important; 
         }
         div[data-testid="stButton"] button { 
-            background-color: transparent !important; color: rgba(0,0,0,0.1) !important; border: none !important; 
+            background-color: transparent !important; color: rgba(0,0,0,0.15) !important; border: none !important; 
             box-shadow: none !important; padding: 10px !important; transition: all 0.3s ease !important; 
         }
+        div[data-testid="stButton"] button p { font-size: 16px !important; margin: 0 !important; }
         div[data-testid="stButton"] button:hover { color: #FF5A5F !important; }
         div[data-testid="stButton"] button:active { transform: rotate(180deg) scale(0.9) !important; }
     </style>
@@ -122,15 +140,13 @@ def fetch_trello_data():
             cover_id = c.get('cover', {}).get('idAttachment')
             attachments = c.get('attachments', [])
             
-            # 💎 智慧選圖函數：找出畫質夠好，又不會撐爆記憶體的圖片
+            # 💎 Retina 高畫質智慧選圖 (保證清晰又不當機)
             def get_optimal_preview(previews):
                 if not previews: return None
                 previews.sort(key=lambda x: x['width'])
                 valid = [p for p in previews if p['width'] >= 800]
-                if valid:
-                    return valid[0]['url'] 
-                else:
-                    return previews[-1]['url'] 
+                if valid: return valid[0]['url'] 
+                else: return previews[-1]['url'] 
 
             if cover_id:
                 for att in attachments:
@@ -223,7 +239,8 @@ def fetch_trello_data():
         active, display = ("active", "block") if i == 0 else ("", "none")
         day_pills_html += f"""
         <div class="sub-pill {active}" onclick="switchSubTab(\'{day["id"]}\', this, \'day-content\')">
-            <span class="pill-title">{day["short_name"]}</span><span class="pill-subtitle">{day["subtitle"]}</span>
+            <span class="pill-title">{day["short_name"]}</span>
+            <span class="pill-subtitle">{day["subtitle"]}</span>
         </div>
         """
         day_contents_html += f"""
@@ -257,13 +274,18 @@ def fetch_trello_data():
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Noto+Sans+TC:wght@500;700;900&display=swap');
             ::-webkit-scrollbar {{ display: none; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
-            html, body {{ overflow-x: hidden; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
-            .app {{ width: 100%; max-width: 500px; margin: 0 auto; min-height: 100vh; padding-bottom: 80px; position: relative; }}
+            
+            /* 🍏 釋放內部滾動：不限制 HTML 高度，讓內容自然生長 */
+            html, body {{ 
+                background-color: #F8F9FA; color: #1E2022; user-select: none; 
+                width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch;
+            }}
+            .app {{ width: 100%; max-width: 500px; margin: 0 auto; min-height: 100%; padding-bottom: 80px; position: relative; }}
             
             :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
             /* 導航 */
-            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; height: 74px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .nav-title {{ font-size: 22px; font-weight: 900; color: var(--primary); letter-spacing: 0.5px; }}
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
@@ -282,7 +304,7 @@ def fetch_trello_data():
             .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; }}
 
             /* 膠囊凍結窗格 */
-            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
             .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.2s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
             .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
@@ -316,10 +338,12 @@ def fetch_trello_data():
 
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
-            .card-cover-img {{ width: 100%; height: auto; display: block; border-bottom: 1px solid var(--border-color); background-color: #F8F9FA; }}
+            
+            /* 圖片維持完美比例，絕不裁切 */
+            .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; border-bottom: 1px solid var(--border-color); background-color: #F8F9FA; }}
+            
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
             .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); }}
-            
             .chevron {{ width: 28px; height: 28px; background: var(--primary-light); border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: 0.4s ease; flex-shrink: 0; }}
             .chevron::after {{ content: ''; width: 7px; height: 7px; border-right: 2px solid var(--primary); border-bottom: 2px solid var(--primary); transform: translateY(-2px) rotate(45deg); transition: 0.3s; }}
             .open .chevron {{ transform: rotate(180deg); background: var(--primary); box-shadow: 0 4px 10px rgba(255, 107, 107, 0.3); }}
@@ -456,20 +480,6 @@ def fetch_trello_data():
         </div>
 
         <script>
-            // JS 動態傳遞高度給 Streamlit，撐開 iframe 解決 Safari 黑屏
-            function updateIframeHeight() {{
-                const height = document.documentElement.scrollHeight;
-                window.parent.postMessage({{
-                    isStreamlitMessage: true,
-                    type: "setFrameHeight",
-                    height: height
-                }}, "*");
-            }}
-
-            const observer = new MutationObserver(updateIframeHeight);
-            observer.observe(document.body, {{ childList: true, subtree: true, attributes: true }});
-            window.addEventListener('load', updateIframeHeight);
-
             function switchMainTab(tabId) {{
                 document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
                 event.target.classList.add('active');
@@ -478,7 +488,6 @@ def fetch_trello_data():
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
                 window.scrollTo(0,0);
-                setTimeout(updateIframeHeight, 100);
             }}
 
             function switchSubTab(targetId, element, contentClass) {{
@@ -503,7 +512,6 @@ def fetch_trello_data():
                 const elementPosition = targetContent.getBoundingClientRect().top;
                 const offsetPosition = elementPosition + window.pageYOffset - offset;
                 window.scrollTo({{ top: offsetPosition, behavior: 'smooth' }});
-                setTimeout(updateIframeHeight, 100);
             }}
 
             function toggleCard(triggerElement) {{
@@ -518,7 +526,6 @@ def fetch_trello_data():
                     body.classList.add('open');
                     triggerElement.classList.add('open');
                 }}
-                setTimeout(updateIframeHeight, 400);
             }}
 
             function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
@@ -672,13 +679,13 @@ def fetch_trello_data():
     return html_content
 
 # ==========================================
-# 3. Streamlit 渲染
+# 3. Streamlit 渲染 (🚀 高度釋放版，解決黑屏與崩潰)
 # ==========================================
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
-# ⚠️ 這裡非常關鍵，scrolling 必須設為 False，讓 JS 控制外部的真實高度！
-components.html(final_html, height=8000, scrolling=False)
+# 這裡 height 必須設定成跟 HTML 的內容無關，因為我們讓 HTML 的 body 自動滾動了！
+components.html(final_html, height=1000, scrolling=True)
 
 if st.button("↻"):
     fetch_trello_data.clear() 
