@@ -6,42 +6,24 @@ import base64
 import concurrent.futures
 
 # ==========================================
-# 0. 介面全螢幕沉浸化 + 鎖死母網頁 + 隱形按鈕
+# 0. 介面設定
 # ==========================================
 st.set_page_config(page_title="奧捷德匈 專屬旅程", page_icon="✈️", layout="wide")
 
+LIGHTSPLIT_URL = "https://liff.line.me/1655320992-Y8GowEpw/g/f23GCF87vCLRRuMLKRa5zJ"
+TRIP_START_DATE = "2026-09-11T23:45:00+08:00"  # 已加上台灣時區
+
 st.markdown("""
     <style>
-        header {visibility: hidden;}
-        footer {visibility: hidden;}
-        .stDeployButton {display:none;}
-
-        /* 🔐 鎖死母網頁，防止雙重捲軸 */
-        html, body, [data-testid="stAppViewContainer"], .main, .block-container {
-            overflow: hidden !important; 
-            margin: 0 !important; 
-            padding: 0 !important; 
-            height: 100vh !important;
-        }
+        header {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;}
+        html, body, [data-testid="stAppViewContainer"], .main, .block-container { overflow: hidden !important; margin: 0 !important; padding: 0 !important; height: 100vh !important; }
         .block-container { max-width: 100% !important; }
+        iframe { border: none !important; width: 100% !important; height: 100vh !important; display: block !important; }
 
-        /* 讓 iframe 精準佔滿 100% 螢幕高度 */
-        iframe { 
-            border: none !important; 
-            width: 100% !important; 
-            height: 100vh !important; 
-            display: block !important; 
-        }
-
-        div[data-testid="stButton"] {
-            position: fixed !important; bottom: 5px !important; right: 8px !important; z-index: 999999 !important;
-        }
-        div[data-testid="stButton"] button {
-            background-color: transparent !important; color: rgba(0, 0, 0, 0.15) !important; border: none !important;
-            box-shadow: none !important; padding: 5px !important; min-height: 0 !important; height: auto !important; transition: all 0.3s ease !important;
-        }
+        div[data-testid="stButton"] { position: fixed !important; bottom: 5px !important; right: 8px !important; z-index: 999999 !important; }
+        div[data-testid="stButton"] button { background-color: transparent !important; color: rgba(0,0,0,0.1) !important; border: none !important; box-shadow: none !important; padding: 5px !important; min-height: 0 !important; height: auto !important; transition: all 0.3s ease !important; }
         div[data-testid="stButton"] button p { font-size: 16px !important; margin: 0 !important; }
-        div[data-testid="stButton"] button:hover { color: rgba(255, 90, 95, 0.8) !important; }
+        div[data-testid="stButton"] button:hover { color: #FF5A5F !important; }
         div[data-testid="stButton"] button:active { transform: rotate(180deg) scale(0.9) !important; }
     </style>
 """, unsafe_allow_html=True)
@@ -120,7 +102,6 @@ def fetch_trello_data():
     lists = lists_res.json()
     all_cards = cards_res.json()
     cards_by_list = {}
-
     for c in all_cards:
         lid = c['idList']
         if lid not in cards_by_list: cards_by_list[lid] = []
@@ -142,8 +123,7 @@ def fetch_trello_data():
                             ('.png', '.jpg', '.jpeg')):
                         img_url = att['url'];
                         break
-            if not img_url and c.get('cover', {}).get('sharedSourceUrl'):
-                img_url = c['cover']['sharedSourceUrl']
+            if not img_url and c.get('cover', {}).get('sharedSourceUrl'): img_url = c['cover']['sharedSourceUrl']
             if img_url:
                 url_set.add(img_url)
                 card_to_url[c['id']] = img_url
@@ -162,7 +142,6 @@ def fetch_trello_data():
         list_name = clean_text(lst['name'])
         cards = cards_by_list.get(lst['id'], [])
         cards_html = ""
-
         is_checklist = "清單" in list_name or "待辦" in list_name
 
         for card in cards:
@@ -174,10 +153,7 @@ def fetch_trello_data():
                 cards_html += f"""
                 <div class="checklist-item" onclick="toggleCheck(this)">
                     <div class="check-circle"></div>
-                    <div class="check-content">
-                        <div class="check-text">{card_name}</div>
-                        {desc_html}
-                    </div>
+                    <div class="check-content"><div class="check-text">{card_name}</div>{desc_html}</div>
                 </div>
                 """
             else:
@@ -188,7 +164,6 @@ def fetch_trello_data():
                 chevron_html = '<div class="chevron"></div>' if has_desc else ''
                 onclick_html = 'onclick="toggleCard(this)"' if has_desc else ''
                 cursor_style = 'cursor: pointer;' if has_desc else 'cursor: default;'
-
                 cards_html += f"""
                 <div class="ios-card">
                     <div class="card-trigger" {onclick_html} style="{cursor_style}">
@@ -198,7 +173,6 @@ def fetch_trello_data():
                     <div class="card-body"><div class="card-content"><div class="card-desc">{card_desc}</div></div></div>
                 </div>
                 """
-
         if not cards_html: cards_html = '<div class="empty-state">🌴 準備中...</div>'
         if is_checklist and cards: cards_html = f'<div class="checklist-group">{cards_html}</div>'
 
@@ -260,115 +234,121 @@ def fetch_trello_data():
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
         <style>
-            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;800&family=Noto+Sans+TC:wght@500;700;900&display=swap');
+            @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Noto+Sans+TC:wght@500;700;900&display=swap');
             ::-webkit-scrollbar {{ display: none; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
+            html, body {{ height: 100%; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
+            .app {{ width: 100%; max-width: 500px; margin: 0 auto; min-height: 100%; padding-bottom: 80px; position: relative; }}
 
-            /* 🚀 解鎖捲軸的關鍵：允許內部 HTML 與 Body 滾動 */
-            html, body {{ 
-                height: 100%; 
-                overflow-x: hidden; 
-                overflow-y: auto; 
-                -webkit-overflow-scrolling: touch; 
-                background-color: #F9FAFC; 
-                color: #2D3142; 
-                user-select: none; 
-            }}
-            .app {{ 
-                width: 100%; max-width: 500px; margin: 0 auto; 
-                min-height: 100%; 
-                padding-bottom: 80px; position: relative; 
-            }}
+            :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
-            /* 導航 */
-            .nav-bar {{ background: rgba(249, 250, 252, 0.85); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: -webkit-sticky; position: sticky; top: 0; z-index: 100; padding: 20px 20px 12px; display: flex; justify-content: space-between; align-items: center; }}
-            .nav-title {{ font-size: 22px; font-weight: 900; background: linear-gradient(135deg, #FF5A5F 0%, #FF7E67 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.5px; }}
-            .tab-switcher {{ display: flex; background: #EFEFF4; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
-            .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #9094A6; border-radius: 10px; cursor: pointer; transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1); }}
-            .tab-btn.active {{ background: #FFFFFF; color: #FF5A5F; box-shadow: 0 4px 10px rgba(0,0,0,0.06); transform: scale(1.02); }}
+            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; height: 74px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .nav-title {{ font-size: 22px; font-weight: 900; color: var(--primary); letter-spacing: 0.5px; }}
+            .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
+            .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
+            .tab-btn.active {{ background: #FFFFFF; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); }}
 
-            /* 膠囊 (凍結窗格) */
-            .sub-nav-wrapper {{ background: rgba(249, 250, 252, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: -webkit-sticky; position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.04); }}
-            .pill-scroll {{ display: flex; overflow-x: auto; gap: 12px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
-            .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 8px 18px; background: #FFFFFF; border-radius: 18px; min-width: 68px; cursor: pointer; transition: 0.3s; box-shadow: 0 2px 8px rgba(0,0,0,0.02); border: 1px solid #F0F0F5; }}
-            .pill-title {{ font-size: 16px; font-weight: 800; color: #5B5F71; }}
-            .pill-subtitle {{ font-size: 10px; font-weight: 600; color: #9094A6; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 54px; text-align: center; }}
-            .sub-pill.active {{ background: linear-gradient(135deg, #FF7E67 0%, #FF5A5F 100%); box-shadow: 0 6px 16px rgba(255, 90, 95, 0.3); border: none; transform: translateY(-2px); }}
-            .sub-pill.active .pill-title {{ color: #FFFFFF; }}
-            .sub-pill.active .pill-subtitle {{ color: rgba(255,255,255,0.8); }}
-            .info-pill {{ flex-direction: row; padding: 10px 20px; }}
+            .countdown-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
+            .cd-mode {{ display: flex; flex-direction: column; align-items: center; width: 100%; }}
+            .cd-title {{ font-size: 13px; font-weight: 700; color: var(--text-sub); margin-bottom: 12px; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }}
+            .cd-timer {{ display: flex; gap: 12px; }}
+            .cd-box {{ display: flex; flex-direction: column; align-items: center; justify-content: center; }}
+            .cd-num {{ font-size: 32px; font-weight: 900; color: var(--text-main); line-height: 1; }}
+            .cd-label {{ font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; margin-top: 4px; }}
+            .journey-mode {{ display: none; flex-direction: column; align-items: center; width: 100%; text-align: center; animation: fadeIn 0.8s ease; }}
+            .journey-greeting {{ font-size: 18px; font-weight: 800; color: var(--primary); margin-bottom: 6px; }}
+            .journey-sub {{ font-size: 13px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }}
+            .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; }}
+
+            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
+            .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.2s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
+            .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
+            .pill-subtitle {{ font-size: 10px; font-weight: 700; color: var(--text-sub); margin-top: 2px; white-space: nowrap; transition: 0.2s; }}
+            .sub-pill.active {{ background: var(--primary); border-color: var(--primary); box-shadow: 0 8px 20px rgba(255, 107, 107, 0.25); transform: translateY(-2px); }}
+            .sub-pill.active .pill-title, .sub-pill.active .pill-subtitle {{ color: #FFFFFF; }}
+            .info-pill {{ flex-direction: row; padding: 10px 20px; white-space: nowrap; width: auto; min-width: 0; }}
             .info-pill .pill-subtitle {{ display: none; }}
-            .info-pill .pill-title {{ font-size: 14px; font-weight: 700; }}
+            .info-pill .pill-title {{ font-size: 14px; font-weight: 700; display: block; }}
 
-            /* 內容 */
             .content-area {{ padding: 24px 20px; }}
             .main-tab {{ display: none; }}
             .main-tab.active {{ display: block; animation: fadeUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
             @keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+            @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
 
-            .city-header {{ margin-bottom: 30px; padding-left: 4px; margin-top: 5px; }}
-            .date-row {{ display: flex; align-items: center; margin-bottom: 8px; }}
-            .city-date {{ font-size: 13px; font-weight: 800; color: #FF7E67; letter-spacing: 1px; }}
-            .weather-badge {{ background: #E8F0FE; color: #007AFF; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 800; margin-left: 12px; display: none; }}
-            .city-title {{ font-size: 30px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: #2D3142; }}
-            .highlight-title {{ color: #FF5A5F; }}
+            .city-header {{ margin-bottom: 24px; padding-left: 4px; margin-top: 5px; }}
+            .date-row {{ display: flex; align-items: center; margin-bottom: 6px; }}
+            .city-date {{ font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: 1px; }}
+            .weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; margin-left: 12px; display: none; }}
+            .city-title {{ font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-main); }}
+            .highlight-title {{ color: var(--primary); }}
 
-            /* 待辦打勾清單 */
-            .card-list {{ display: flex; flex-direction: column; gap: 24px; }}
-            .checklist-group {{ background: #FFFFFF; border-radius: 20px; overflow: hidden; box-shadow: 0 8px 24px rgba(45, 49, 66, 0.04); border: 1px solid rgba(0,0,0,0.02); }}
-            .checklist-item {{ display: flex; align-items: flex-start; padding: 18px 20px; border-bottom: 1px solid #F2F2F7; cursor: pointer; transition: 0.2s; background: #FFFFFF; }}
-            .checklist-item:active {{ background: #F9FAFC; }}
-            .checklist-item:last-child {{ border-bottom: none; }}
-            .check-circle {{ width: 24px; height: 24px; border-radius: 50%; border: 2px solid #D1D1D6; margin-right: 16px; flex-shrink: 0; transition: 0.2s; position: relative; margin-top: 2px; }}
-            .check-content {{ flex: 1; }}
-            .check-text {{ font-size: 16px; font-weight: 700; color: #2D3142; line-height: 1.4; transition: 0.2s; }}
-            .check-desc {{ font-size: 13px; color: #8E8E93; margin-top: 6px; font-weight: 600; line-height: 1.5; }}
+            .split-card {{ background: linear-gradient(135deg, #1E2022 0%, #374151 100%); border-radius: 20px; padding: 20px; display: flex; align-items: center; color: white; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; }}
+            .split-card:active {{ transform: scale(0.96); }}
+            .split-icon {{ font-size: 24px; margin-right: 16px; background: rgba(255,255,255,0.15); width: 50px; height: 50px; border-radius: 14px; display: flex; justify-content: center; align-items: center; }}
+            .split-info {{ flex: 1; }}
+            .split-title {{ font-size: 17px; font-weight: 800; margin-bottom: 4px; letter-spacing: 0.5px; }}
+            .split-desc {{ font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.7); }}
+            .split-arrow {{ font-size: 16px; font-weight: 900; background: #FFFFFF; color: #1E2022; width: 32px; height: 32px; border-radius: 50%; display: flex; justify-content: center; align-items: center; }}
 
-            .checklist-item.checked .check-circle {{ background: #06D6A0; border-color: #06D6A0; transform: scale(1.05); }}
-            .checklist-item.checked .check-circle::after {{ content: '✓'; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 14px; font-weight: 900; }}
-            .checklist-item.checked .check-text {{ color: #B0B3C6; text-decoration: line-through; }}
-            .checklist-item.checked .check-desc {{ color: #D1D1D6; text-decoration: line-through; }}
+            .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
+            .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
 
-            /* 一般卡片 */
-            .ios-card {{ background: #FFFFFF; border-radius: 24px; box-shadow: 0 12px 30px rgba(45, 49, 66, 0.06); overflow: hidden; transition: 0.3s; border: 1px solid rgba(0,0,0,0.01); }}
-            .card-cover-img {{ width: 100%; height: auto; max-height: 280px; object-fit: contain; background-color: #F9FAFC; display: block; border-bottom: 1px solid rgba(0,0,0,0.02); }}
-            .card-header {{ padding: 22px; display: flex; justify-content: space-between; align-items: center; }}
-            .card-title {{ font-size: 18px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: #2D3142; }}
-            .chevron {{ width: 32px; height: 32px; background: #FFF0F0; border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1); flex-shrink: 0; }}
-            .chevron::after {{ content: ''; width: 8px; height: 8px; border-right: 3px solid #FF5A5F; border-bottom: 3px solid #FF5A5F; transform: translateY(-2px) rotate(45deg); transition: 0.3s; }}
-            .open .chevron {{ transform: rotate(180deg); background: #FF5A5F; box-shadow: 0 4px 10px rgba(255, 90, 95, 0.3); }}
+            /* 🚀 終極修復：原生自適應圖片，不裁切、不壓扁！ */
+            .card-cover-img {{ width: 100%; height: auto; display: block; border-bottom: 1px solid var(--border-color); background-color: #F8F9FA; }}
+
+            .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
+            .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); }}
+
+            .chevron {{ width: 28px; height: 28px; background: var(--primary-light); border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: 0.4s ease; flex-shrink: 0; }}
+            .chevron::after {{ content: ''; width: 7px; height: 7px; border-right: 2px solid var(--primary); border-bottom: 2px solid var(--primary); transform: translateY(-2px) rotate(45deg); transition: 0.3s; }}
+            .open .chevron {{ transform: rotate(180deg); background: var(--primary); box-shadow: 0 4px 10px rgba(255, 107, 107, 0.3); }}
             .open .chevron::after {{ border-color: #FFFFFF; transform: translateY(2px) rotate(45deg); }}
-            .card-body {{ display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
-            .card-body.open {{ grid-template-rows: 1fr; border-top: 1px dashed #F0F0F5; }}
+
+            .card-body {{ display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s ease; }}
+            .card-body.open {{ grid-template-rows: 1fr; border-top: 1px solid var(--border-color); }}
             .card-content {{ overflow: hidden; }}
-            .card-desc {{ padding: 0 22px 26px; font-size: 15px; color: #5B5F71; line-height: 1.7; word-wrap: break-word; margin-top: 18px; user-select: text; }}
+            .card-desc {{ padding: 0 20px 24px; font-size: 15px; color: var(--text-sub); line-height: 1.7; word-wrap: break-word; margin-top: 16px; user-select: text; }}
 
-            .custom-ul {{ margin: 12px 0 12px 24px; padding: 0; }}
-            .custom-ul li {{ margin-bottom: 10px; list-style-type: none; position: relative; color: #5B5F71; }}
-            .custom-ul li::before {{ content: '✨'; position: absolute; left: -22px; font-size: 12px; top: 2px; }}
-            .highlight-text {{ font-weight: 800; color: #2D3142; background: linear-gradient(120deg, #FFD166 0%, #FFD166 100%); background-repeat: no-repeat; background-size: 100% 35%; background-position: 0 90%; padding: 0 2px; }}
-            .action-btn {{ display: inline-flex; align-items: center; margin-top: 15px; margin-right: 10px; padding: 12px 20px; background: #FFF0F0; color: #FF5A5F; text-decoration: none; font-size: 14px; font-weight: 800; border-radius: 14px; transition: 0.2s; }}
+            .checklist-group {{ background: #FFFFFF; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid var(--border-color); }}
+            .checklist-item {{ display: flex; align-items: flex-start; padding: 16px 20px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: 0.2s; background: #FFFFFF; }}
+            .checklist-item:active {{ background: var(--bg-color); }}
+            .checklist-item:last-child {{ border-bottom: none; }}
+            .check-circle {{ width: 22px; height: 22px; border-radius: 50%; border: 2px solid #D1D5DB; margin-right: 14px; flex-shrink: 0; transition: 0.2s; position: relative; margin-top: 2px; }}
+            .check-content {{ flex: 1; }}
+            .check-text {{ font-size: 15px; font-weight: 700; color: var(--text-main); line-height: 1.4; transition: 0.2s; }}
+            .check-desc {{ font-size: 13px; color: var(--text-sub); margin-top: 4px; font-weight: 600; line-height: 1.5; }}
+            .checklist-item.checked .check-circle {{ background: #10B981; border-color: #10B981; transform: scale(1.05); }}
+            .checklist-item.checked .check-circle::after {{ content: '✓'; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: 900; }}
+            .checklist-item.checked .check-text {{ color: #9CA3AF; text-decoration: line-through; }}
+            .checklist-item.checked .check-desc {{ color: #D1D5DB; text-decoration: line-through; }}
+
+            .custom-ul {{ margin: 10px 0 10px 22px; padding: 0; }}
+            .custom-ul li {{ margin-bottom: 10px; list-style-type: disc; color: var(--text-sub); line-height: 1.5; }}
+            .highlight-text {{ font-weight: 700; color: var(--text-main); box-shadow: inset 0 -8px 0 rgba(255, 204, 0, 0.3); }}
+            .action-btn {{ display: inline-flex; align-items: center; margin-top: 15px; margin-right: 10px; padding: 12px 20px; background: var(--primary-light); color: var(--primary); text-decoration: none; font-size: 14px; font-weight: 800; border-radius: 12px; transition: 0.2s; }}
             .action-btn:active {{ transform: scale(0.95); }}
-            .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 16px; font-weight: 700; }}
+            .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 15px; font-weight: 500; }}
 
-            /* 計算機 UI 保持不變... */
-            .calc-wrapper {{ background: #FFFFFF; border-radius: 32px; padding: 24px; box-shadow: 0 16px 40px rgba(45, 49, 66, 0.08); display: flex; flex-direction: column; gap: 20px; border: 1px solid rgba(0,0,0,0.02); }}
-            .calc-screen {{ background: #F9FAFC; border-radius: 20px; padding: 24px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid #F0F0F5; }}
-            .currency-badge {{ position: absolute; top: 20px; left: 20px; background: #FFFFFF; border: none; padding: 8px 14px; border-radius: 12px; font-size: 15px; font-weight: 800; color: #FF5A5F; box-shadow: 0 4px 12px rgba(0,0,0,0.05); outline: none; -webkit-appearance: none; cursor: pointer; }}
-            .calc-formula {{ font-size: 16px; color: #9094A6; min-height: 24px; font-weight: 700; margin-top: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-            .calc-foreign {{ font-size: 42px; font-weight: 900; color: #2D3142; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -1px; margin-bottom: 5px; }}
-            .calc-twd {{ font-size: 18px; font-weight: 800; color: #06D6A0; background: rgba(6, 214, 160, 0.1); display: inline-block; padding: 4px 12px; border-radius: 10px; align-self: flex-end; }}
-            .calc-keypad {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }}
-            .key {{ background: #FFFFFF; color: #2D3142; font-size: 22px; font-weight: 700; border-radius: 50%; aspect-ratio: 1/1; border: none; text-align: center; transition: 0.15s; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 12px rgba(0,0,0,0.04); touch-action: manipulation; }}
-            .key:active {{ transform: scale(0.9); box-shadow: 0 1px 4px rgba(0,0,0,0.02); background: #F0F0F5; }}
-            .key.op {{ color: #FF7E67; font-size: 26px; background: #FFF0F0; box-shadow: none; }}
+            .calc-wrapper {{ background: #FFFFFF; border-radius: 24px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); border: 1px solid var(--border-color); }}
+            .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 20px; }}
+            .currency-badge {{ position: absolute; top: 16px; left: 16px; background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
+            .calc-formula {{ font-size: 15px; color: var(--text-sub); min-height: 22px; font-weight: 700; margin-top: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+            .calc-foreign {{ font-size: 40px; font-weight: 900; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -1px; margin-bottom: 4px; }}
+            .calc-twd {{ font-size: 16px; font-weight: 800; color: #10B981; background: rgba(16, 185, 129, 0.1); display: inline-block; padding: 4px 10px; border-radius: 8px; align-self: flex-end; }}
+
+            .calc-keypad {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
+            .key {{ background: #FFFFFF; color: var(--text-main); font-size: 20px; font-weight: 700; border-radius: 14px; aspect-ratio: 1.2/1; border: 1px solid var(--border-color); text-align: center; transition: 0.1s; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02); touch-action: manipulation; }}
+            .key:active {{ transform: scale(0.92); background: var(--bg-color); }}
+            .key.op {{ color: var(--primary); font-size: 22px; background: var(--primary-light); border-color: transparent; }}
             .key.op:active {{ background: #FFE0E0; }}
-            .key.equal {{ background: linear-gradient(135deg, #FF7E67 0%, #FF5A5F 100%); color: #FFFFFF; font-size: 30px; box-shadow: 0 8px 20px rgba(255, 90, 95, 0.4); }}
-            .key.equal:active {{ box-shadow: 0 4px 10px rgba(255, 90, 95, 0.3); }}
-            .key.clear {{ color: #FF5A5F; font-weight: 800; background: #FFF0F0; box-shadow: none; }}
-            .rate-status {{ text-align: center; font-size: 13px; color: #9094A6; font-weight: 700; margin-top: 10px; }}
-            .dot {{ display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #06D6A0; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 8px rgba(6, 214, 160, 0.6); }}
-            .dot.offline {{ background: #FFD166; box-shadow: 0 0 8px rgba(255, 209, 102, 0.6); }}
+            .key.equal {{ background: var(--primary); color: #FFFFFF; font-size: 24px; border-color: transparent; box-shadow: 0 6px 15px rgba(255, 107, 107, 0.3); }}
+            .key.clear {{ color: var(--text-sub); font-weight: 800; background: var(--bg-color); border-color: transparent; }}
+
+            .rate-status {{ text-align: center; font-size: 12px; color: var(--text-sub); font-weight: 700; margin-top: 12px; }}
+            .dot {{ display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }}
+            .dot.offline {{ background: #F59E0B; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }}
         </style>
     </head>
     <body>
@@ -382,6 +362,25 @@ def fetch_trello_data():
                 </div>
             </div>
 
+            <div id="countdown-widget" class="countdown-wrapper" style="display: none;">
+                <div id="cd-mode" class="cd-mode">
+                    <div class="cd-title">✈️ 距離出發還剩</div>
+                    <div class="cd-timer">
+                        <div class="cd-box"><span id="cd-day" class="cd-num">--</span><span class="cd-label">天</span></div>
+                        <div class="cd-box"><span id="cd-hr" class="cd-num">--</span><span class="cd-label">時</span></div>
+                        <div class="cd-box"><span id="cd-min" class="cd-num">--</span><span class="cd-label">分</span></div>
+                        <div class="cd-box"><span id="cd-sec" class="cd-num">--</span><span class="cd-label">秒</span></div>
+                    </div>
+                </div>
+                <div id="journey-mode" class="journey-mode">
+                    <div id="journey-greeting" class="journey-greeting">✨ 旅程正式展開！</div>
+                    <div class="journey-sub">
+                        <span id="journey-location">目前位置分析中...</span>
+                        <span id="journey-weather" class="journey-weather-badge">--</span>
+                    </div>
+                </div>
+            </div>
+
             <div id="nav-itinerary" class="sub-nav-wrapper"><div class="pill-scroll">{day_pills_html}</div></div>
             <div id="nav-info" class="sub-nav-wrapper" style="display: none;"><div class="pill-scroll">{info_pills_html}</div></div>
 
@@ -390,6 +389,15 @@ def fetch_trello_data():
                 <div id="tab-info" class="main-tab">{info_contents_html}</div>
 
                 <div id="tab-tools" class="main-tab">
+                    <div class="split-card" onclick="window.open('{LIGHTSPLIT_URL}', '_blank')">
+                        <div class="split-icon">💸</div>
+                        <div class="split-info">
+                            <div class="split-title">光速分帳 LightSplit</div>
+                            <div class="split-desc">開啟專屬公費帳本</div>
+                        </div>
+                        <div class="split-arrow">↗</div>
+                    </div>
+
                     <div class="city-header"><span class="city-date">Calculator</span><h2 class="city-title">外幣匯率換算</h2></div>
                     <div class="calc-wrapper">
                         <div class="calc-screen">
@@ -429,14 +437,51 @@ def fetch_trello_data():
         </div>
 
         <script>
+            const targetDate = new Date("{TRIP_START_DATE}").getTime();
+            const widgetWrapper = document.getElementById('countdown-widget');
+            const cdMode = document.getElementById('cd-mode');
+            const journeyMode = document.getElementById('journey-mode');
+            let currentActiveCity = "維也納";
+
+            function toggleWidgetVisibility(tabId) {{
+                widgetWrapper.style.display = tabId === 'tab-itinerary' ? 'flex' : 'none';
+            }}
+            toggleWidgetVisibility('tab-itinerary');
+
+            const timerInterval = setInterval(function() {{
+                const now = new Date();
+                const distance = targetDate - now.getTime();
+
+                if (distance < 0) {{
+                    clearInterval(timerInterval);
+                    cdMode.style.display = 'none';
+                    journeyMode.style.display = 'flex';
+
+                    let hour = now.getHours();
+                    let greeting = "✨ 盡情享受專屬旅程！";
+                    if (hour >= 5 && hour < 12) greeting = "☕ 早安！今天也是充滿期待的一天";
+                    else if (hour >= 12 && hour < 18) greeting = "☀️ 午安！盡情享受美好的午後時光";
+                    else if (hour >= 18 || hour < 5) greeting = "🌙 晚安！辛苦了，回飯店好好休息吧";
+
+                    document.getElementById('journey-greeting').innerText = greeting;
+                    document.getElementById('journey-location').innerText = currentActiveCity;
+                    return;
+                }}
+
+                document.getElementById('cd-day').innerText = Math.floor(distance / (1000 * 60 * 60 * 24));
+                document.getElementById('cd-hr').innerText = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)).toString().padStart(2, '0');
+                document.getElementById('cd-min').innerText = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60)).toString().padStart(2, '0');
+                document.getElementById('cd-sec').innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
+            }}, 1000);
+
             function switchMainTab(tabId) {{
                 document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
                 event.target.classList.add('active');
                 document.querySelectorAll('.main-tab').forEach(c => c.classList.remove('active'));
                 document.getElementById(tabId).classList.add('active');
-
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
+                toggleWidgetVisibility(tabId);
                 window.scrollTo(0,0);
             }}
 
@@ -446,12 +491,19 @@ def fetch_trello_data():
                 element.classList.add('active');
                 const mainTab = document.getElementById(contentClass.includes('day') ? 'tab-itinerary' : 'tab-info');
                 mainTab.querySelectorAll('.' + contentClass).forEach(c => c.style.display = 'none');
-                document.getElementById(targetId).style.display = 'block';
-                element.scrollIntoView({{ behavior: 'smooth', block: 'nearest', inline: 'center' }});
 
-                // 點擊後將標題對齊導航列下方 (145px)
-                const offset = 145; 
-                const elementPosition = document.getElementById(targetId).getBoundingClientRect().top;
+                const targetContent = document.getElementById(targetId);
+                targetContent.style.display = 'block';
+
+                let loc = targetContent.getAttribute('data-location');
+                if (loc) {{
+                    for (let zh of Object.keys(coords)) {{
+                        if (loc.includes(zh)) {{ currentActiveCity = zh; break; }}
+                    }}
+                }}
+
+                const offset = contentClass.includes('day') ? 250 : 145; 
+                const elementPosition = targetContent.getBoundingClientRect().top;
                 const offsetPosition = elementPosition + window.pageYOffset - offset;
                 window.scrollTo({{ top: offsetPosition, behavior: 'smooth' }});
             }}
@@ -470,26 +522,18 @@ def fetch_trello_data():
                 }}
             }}
 
-            function toggleCheck(itemElement) {{
-                itemElement.classList.toggle('checked');
-            }}
+            function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
 
             const coords = {{
                 "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
                 "薩爾斯堡": {{lat: 47.809, lon: 13.04}}, "哈修塔特": {{lat: 47.562, lon: 13.64}},
                 "布達佩斯": {{lat: 47.497, lon: 19.04}}, "庫倫洛夫": {{lat: 48.812, lon: 14.31}},
-                "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}},
-                "慕尼黑": {{lat: 48.135, lon: 11.58}}
+                "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}}, "慕尼黑": {{lat: 48.135, lon: 11.58}}
             }};
             function getWeatherEmoji(code) {{
-                if(code === 0) return "☀️";
-                if(code >= 1 && code <= 3) return "⛅";
-                if(code >= 45 && code <= 48) return "🌫️";
-                if(code >= 51 && code <= 67) return "🌧️";
-                if(code >= 71 && code <= 77) return "❄️";
-                if(code >= 80 && code <= 82) return "🌨️";
-                if(code >= 95) return "⛈️";
-                return "🌡️";
+                if(code===0) return "☀️"; if(code<=3) return "⛅"; if(code<=48) return "🌫️";
+                if(code<=67) return "🌧️"; if(code<=77) return "❄️"; if(code<=82) return "🌨️";
+                if(code>=95) return "⛈️"; return "🌡️";
             }}
             document.querySelectorAll('.day-content').forEach(day => {{
                 let loc = day.getAttribute('data-location');
@@ -508,6 +552,13 @@ def fetch_trello_data():
                                 let badge = day.querySelector('.weather-badge');
                                 badge.innerHTML = `${{emoji}} ${{temp}}°C`;
                                 badge.style.display = 'inline-block';
+
+                                // 同步更新管家天氣
+                                if (day.style.display === 'block') {{
+                                    let journeyBadge = document.getElementById('journey-weather');
+                                    journeyBadge.innerHTML = `${{emoji}} ${{temp}}°C`;
+                                    journeyBadge.style.display = 'inline-block';
+                                }}
                             }}
                         }}).catch(() => {{}});
                 }}
@@ -525,7 +576,7 @@ def fetch_trello_data():
                         updateCalc();
                     }}
                 }}).catch(() => {{
-                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用安全預設匯率`;
+                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用預設匯率`;
                 }});
 
             function pressKey(key) {{
@@ -554,7 +605,7 @@ def fetch_trello_data():
                     isResult = false;
                     displayDiv.innerText = currentFormula;
                 }}
-                if(currentFormula.length > 12) {{ displayDiv.style.fontSize = "30px"; }} else {{ displayDiv.style.fontSize = "42px"; }}
+                if(currentFormula.length > 12) {{ displayDiv.style.fontSize = "30px"; }} else {{ displayDiv.style.fontSize = "40px"; }}
                 updateCalc();
             }}
 
@@ -579,15 +630,13 @@ def fetch_trello_data():
 
 
 # ==========================================
-# 3. Streamlit 渲染 (開放捲軸)
+# 3. Streamlit 渲染
 # ==========================================
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
-# 🚀 關鍵解鎖：scrolling=True，讓 App 內部自由滾動！
-components.html(final_html, height=850, scrolling=True)
+components.html(final_html, height=1200, scrolling=True)
 
-# 🤫 極度隱形的更新按鈕
 if st.button("↻"):
     fetch_trello_data.clear()
     st.rerun()
