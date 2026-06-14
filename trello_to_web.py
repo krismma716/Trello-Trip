@@ -20,20 +20,17 @@ st.markdown("""
         .stDeployButton {display:none;}
         #MainMenu {display:none;}
         
-        /* 🚨 拔除鎖死設定，釋放母網頁的滾動權力 */
         .block-container {
             padding: 0 !important;
             max-width: 100% !important;
         }
         
-        /* iframe 不再限制高度 100vh，而是讓 JS 動態撐開 */
         iframe { 
             border: none !important; 
             width: 100vw !important; 
             display: block !important; 
         }
         
-        /* 隱形更新按鈕 */
         div[data-testid="stButton"] { 
             position: fixed !important; bottom: 5px !important; right: 5px !important; z-index: 999999 !important; 
         }
@@ -124,25 +121,34 @@ def fetch_trello_data():
             img_url = None
             cover_id = c.get('cover', {}).get('idAttachment')
             attachments = c.get('attachments', [])
+            
+            # 💎 智慧選圖函數：找出畫質夠好，又不會撐爆記憶體的圖片
+            def get_optimal_preview(previews):
+                if not previews: return None
+                previews.sort(key=lambda x: x['width'])
+                valid = [p for p in previews if p['width'] >= 800]
+                if valid:
+                    return valid[0]['url'] 
+                else:
+                    return previews[-1]['url'] 
+
             if cover_id:
                 for att in attachments:
                     if att['id'] == cover_id:
-                        previews = att.get('previews', [])
-                        if previews:
-                            valid = [p for p in previews if p['width'] >= 300]
-                            img_url = valid[0]['url'] if valid else previews[0]['url']
-                        else: img_url = att['url']
+                        optimal_url = get_optimal_preview(att.get('previews', []))
+                        img_url = optimal_url if optimal_url else att['url']
                         break
+            
             if not img_url and attachments:
                 for att in attachments:
                     if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(('.png', '.jpg', '.jpeg')):
-                        previews = att.get('previews', [])
-                        if previews:
-                            valid = [p for p in previews if p['width'] >= 300]
-                            img_url = valid[0]['url'] if valid else previews[0]['url']
-                        else: img_url = att['url']
+                        optimal_url = get_optimal_preview(att.get('previews', []))
+                        img_url = optimal_url if optimal_url else att['url']
                         break
-            if not img_url and c.get('cover', {}).get('sharedSourceUrl'): img_url = c['cover']['sharedSourceUrl']
+            
+            if not img_url and c.get('cover', {}).get('sharedSourceUrl'): 
+                img_url = c['cover']['sharedSourceUrl']
+                
             if img_url:
                 url_set.add(img_url)
                 card_to_url[c['id']] = img_url
@@ -209,6 +215,9 @@ def fetch_trello_data():
         else:
             info_data.append({'id': list_id, 'short_name': list_name, 'html': cards_html})
 
+    # ==========================================
+    # 3. HTML 生成
+    # ==========================================
     day_pills_html, day_contents_html = "", ""
     for i, day in enumerate(days_data):
         active, display = ("active", "block") if i == 0 else ("", "none")
@@ -247,13 +256,9 @@ def fetch_trello_data():
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Noto+Sans+TC:wght@500;700;900&display=swap');
             ::-webkit-scrollbar {{ display: none; }}
-            
-            /* 🚫 解開網頁封印：不再設定 height 100% 和 overflow hidden，讓內容自然撐開 */
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
-            body {{ background-color: #F8F9FA; color: #1E2022; user-select: none; }}
-            
-            /* 讓 App 的底色與邊界自然延伸 */
-            .app {{ width: 100%; max-width: 500px; margin: 0 auto; background-color: #F8F9FA; min-height: 100vh; padding-bottom: 80px; position: relative; }}
+            html, body {{ overflow-x: hidden; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
+            .app {{ width: 100%; max-width: 500px; margin: 0 auto; min-height: 100vh; padding-bottom: 80px; position: relative; }}
             
             :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
@@ -345,7 +350,7 @@ def fetch_trello_data():
             .action-btn:active {{ transform: scale(0.95); }}
             .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 15px; font-weight: 500; }}
 
-            /* 🧮 計算機 */
+            /* 計算機 */
             .calc-wrapper {{ background: #FFFFFF; border-radius: 24px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); border: 1px solid var(--border-color); }}
             .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 20px; }}
             .currency-badge {{ position: absolute; top: 16px; left: 16px; background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
@@ -451,7 +456,7 @@ def fetch_trello_data():
         </div>
 
         <script>
-            // 🚀 關鍵解藥：動態回報 iframe 高度給 Streamlit，撐開母網頁！
+            // JS 動態傳遞高度給 Streamlit，撐開 iframe 解決 Safari 黑屏
             function updateIframeHeight() {{
                 const height = document.documentElement.scrollHeight;
                 window.parent.postMessage({{
@@ -461,16 +466,10 @@ def fetch_trello_data():
                 }}, "*");
             }}
 
-            // 當畫面有任何變動（點擊選單、展開卡片）時，重新計算並通報高度
             const observer = new MutationObserver(updateIframeHeight);
             observer.observe(document.body, {{ childList: true, subtree: true, attributes: true }});
-            
-            // 頁面載入時也通報一次
             window.addEventListener('load', updateIframeHeight);
 
-            // ===================================
-            // 剩餘的 JS 邏輯完全相同
-            // ===================================
             function switchMainTab(tabId) {{
                 document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
                 event.target.classList.add('active');
@@ -479,7 +478,7 @@ def fetch_trello_data():
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
                 window.scrollTo(0,0);
-                setTimeout(updateIframeHeight, 100); // 切換後更新高度
+                setTimeout(updateIframeHeight, 100);
             }}
 
             function switchSubTab(targetId, element, contentClass) {{
@@ -504,7 +503,7 @@ def fetch_trello_data():
                 const elementPosition = targetContent.getBoundingClientRect().top;
                 const offsetPosition = elementPosition + window.pageYOffset - offset;
                 window.scrollTo({{ top: offsetPosition, behavior: 'smooth' }});
-                setTimeout(updateIframeHeight, 100); // 切換後更新高度
+                setTimeout(updateIframeHeight, 100);
             }}
 
             function toggleCard(triggerElement) {{
@@ -519,7 +518,7 @@ def fetch_trello_data():
                     body.classList.add('open');
                     triggerElement.classList.add('open');
                 }}
-                setTimeout(updateIframeHeight, 400); // 展開動畫結束後更新高度
+                setTimeout(updateIframeHeight, 400);
             }}
 
             function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
@@ -530,13 +529,11 @@ def fetch_trello_data():
                 "布達佩斯": {{lat: 47.497, lon: 19.04}}, "庫倫洛夫": {{lat: 48.812, lon: 14.31}},
                 "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}}, "慕尼黑": {{lat: 48.135, lon: 11.58}}
             }};
-            
             function getWeatherEmoji(code) {{
                 if(code === 0) return "☀️"; if(code <= 3) return "⛅"; if(code <= 48) return "🌫️";
                 if(code <= 67) return "🌧️"; if(code <= 77) return "❄️"; if(code <= 82) return "🌨️";
                 if(code >= 95) return "⛈️"; return "🌡️";
             }}
-
             function updateWeatherBadge(badgeElement, targetCoord) {{
                 if (!targetCoord || !badgeElement) return;
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&current_weather=true`)
@@ -675,13 +672,13 @@ def fetch_trello_data():
     return html_content
 
 # ==========================================
-# 3. Streamlit 渲染 (🚀 重大改變：高度自動適應)
+# 3. Streamlit 渲染
 # ==========================================
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
-# 🚀 拔掉寫死的高度，讓 JS 傳回來的真實高度撐開 iframe，完美融合 Safari 網頁！
-components.html(final_html, height=10000, scrolling=False)
+# ⚠️ 這裡非常關鍵，scrolling 必須設為 False，讓 JS 控制外部的真實高度！
+components.html(final_html, height=8000, scrolling=False)
 
 if st.button("↻"):
     fetch_trello_data.clear() 
