@@ -8,7 +8,7 @@ import io
 from PIL import Image
 
 # ==========================================
-# 0. 介面設定與 Safari 終極防卡死佈局
+# 0. 介面設定
 # ==========================================
 st.set_page_config(page_title="奧捷德匈 專屬旅程", page_icon="✈️", layout="wide")
 
@@ -23,7 +23,7 @@ st.markdown("""
         .stDeployButton {display: none !important;} 
         #MainMenu {display: none !important;}
         
-        /* 🔐 鎖死母網頁：不准外部滾動，消除 Safari 黑屏回彈 */
+        /* 🔐 鎖死母網頁 */
         html, body, [data-testid="stAppViewContainer"], .main, .block-container { 
             overflow: hidden !important; 
             margin: 0 !important; 
@@ -33,7 +33,6 @@ st.markdown("""
             background-color: #F8F9FA !important;
         }
         
-        /* 讓 iframe 變成全螢幕獨立 App */
         iframe { 
             position: fixed !important;
             top: 0 !important; 
@@ -45,32 +44,32 @@ st.markdown("""
             z-index: 1 !important;
         }
         
-        /* 🔄 開發者專屬：毛玻璃質感重新整理按鈕 */
+        /* 🔄 將更新按鈕移至「左下角」，徹底避開右側官方圖示 */
         div[data-testid="stButton"] { 
             position: fixed !important; 
-            bottom: 35px !important; 
-            right: 20px !important; 
+            bottom: 20px !important; 
+            left: 20px !important; 
             z-index: 999999 !important; 
         }
         div[data-testid="stButton"] button { 
-            background: rgba(255, 255, 255, 0.7) !important; 
+            background: rgba(255, 255, 255, 0.6) !important; 
             backdrop-filter: blur(10px) !important; 
             -webkit-backdrop-filter: blur(10px) !important;
             color: #8E8E93 !important; 
-            border: 1px solid rgba(0,0,0,0.1) !important; 
+            border: 1px solid rgba(0,0,0,0.05) !important; 
             border-radius: 50% !important; 
-            width: 44px !important; 
-            height: 44px !important; 
+            width: 42px !important; 
+            height: 42px !important; 
             padding: 0 !important;
             display: flex !important; 
             justify-content: center !important; 
             align-items: center !important; 
-            box-shadow: 0 4px 15px rgba(0,0,0,0.08) !important; 
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important; 
             transition: all 0.2s ease !important; 
         }
-        div[data-testid="stButton"] button p { font-size: 20px !important; margin: 0 !important; font-weight: bold !important;}
-        div[data-testid="stButton"] button:hover { color: #FF5A5F !important; }
-        div[data-testid="stButton"] button:active { transform: scale(0.9) !important; background: #FF5A5F !important; color: white !important; }
+        div[data-testid="stButton"] button p { font-size: 18px !important; margin: 0 !important; font-weight: bold !important;}
+        div[data-testid="stButton"] button:hover { color: #FF5A5F !important; background: rgba(255,255,255,0.9) !important; }
+        div[data-testid="stButton"] button:active { transform: scale(0.9) !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -96,10 +95,16 @@ def fetch_trello_data():
     def parse_markdown(text):
         if not text: return ""
         text = clean_text(text)
+        
+        map_pattern = r'(?<!=")(https?://(?:goo\.gl/maps|maps\.app\.goo\.gl|www\.google\.com/maps)[^\s<]+)(?!">)'
+        text = re.sub(map_pattern, r'<a href="\1" target="_blank" class="map-btn">📍 導航至此 (Google Maps)</a>', text)
         text = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight-text">\1</span>', text)
         text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-        text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'<a href="\2" target="_blank" class="action-btn">📍 \1</a>', text)
-        text = re.sub(r'(?<!=")(https?://[^\s<]+)(?!">)', r'<a href="\1" target="_blank" class="action-btn">🔗 點擊連結</a>', text)
+        text = re.sub(r'\[([^\]]+)\]\((https?://(?:goo\.gl|maps\.app\.goo\.gl|www\.google\.com/maps)[^\)]+)\)', r'<a href="\2" target="_blank" class="map-btn">📍 \1 (Google Maps)</a>', text)
+        text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'<a href="\2" target="_blank" class="action-btn">🔗 \1</a>', text)
+        normal_url_pattern = r'(?<!=")(https?://[^\s<]+)(?!">)'
+        text = re.sub(normal_url_pattern, r'<a href="\1" target="_blank" class="action-btn">🔗 點擊連結</a>', text)
+        
         lines = text.split('\n')
         html_lines, in_list = [], False
         for line in lines:
@@ -129,7 +134,6 @@ def fetch_trello_data():
             if final_res.status_code == 200:
                 ctype = final_res.headers.get('Content-Type', '').lower()
                 content = final_res.content
-                # 💎 Pillow 高清瘦身：確保圖片不大於 800px，不撐爆 iPhone 記憶體
                 try:
                     if 'image' in ctype or url.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                         img = Image.open(io.BytesIO(content))
@@ -140,7 +144,6 @@ def fetch_trello_data():
                         content = out.getvalue()
                         ctype = 'image/jpeg'
                 except Exception: pass
-
                 b64 = base64.b64encode(content).decode('utf-8')
                 return f"data:{ctype};base64,{b64}"
         except Exception: pass
@@ -210,7 +213,6 @@ def fetch_trello_data():
         for card in cards:
             card_name = clean_text(card.get("name", ""))
             
-            # V35 網址極簡按鈕轉換
             raw_desc = card.get("desc", "").strip()
             link_buttons_html = ""
             urls = re.findall(r'(?<!=")(https?://[^\s<]+)(?!">)', raw_desc)
@@ -284,7 +286,8 @@ def fetch_trello_data():
         active, display = ("active", "block") if i == 0 else ("", "none")
         day_pills_html += f"""
         <div class="sub-pill {active}" onclick="switchSubTab(\'{day["id"]}\', this, \'day-content\')">
-            <span class="pill-title">{day["short_name"]}</span><span class="pill-subtitle">{day["subtitle"]}</span>
+            <span class="pill-title">{day["short_name"]}</span>
+            <span class="pill-subtitle">{day["subtitle"]}</span>
         </div>
         """
         day_contents_html += f"""
@@ -319,18 +322,21 @@ def fetch_trello_data():
             ::-webkit-scrollbar {{ display: none; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
             
-            /* 🍏 內部自由滾動 */
-            html, body {{ height: 100%; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
-            .app {{ width: 100%; max-width: 500px; margin: 0 auto; min-height: 100vh; padding-bottom: 80px; position: relative; }}
+            /* 🚀 物理隔離佈局：徹底根除 Header 跑版問題 */
+            html, body {{ height: 100dvh; overflow: hidden; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
+            .app {{ display: flex; flex-direction: column; height: 100dvh; width: 100%; max-width: 500px; margin: 0 auto; background-color: #F8F9FA; position: relative; }}
             
             :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
-            /* 導航 */
-            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            /* 🌟 永遠不動的主導航列 */
+            .nav-bar {{ flex-shrink: 0; background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); z-index: 100; }}
             .nav-title {{ font-size: 22px; font-weight: 900; color: var(--primary); letter-spacing: 0.5px; }}
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
             .tab-btn.active {{ background: #FFFFFF; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); }}
+            
+            /* 🌟 專屬滾動容器：所有上下滑動都在這裡發生，絕不干擾 Safari 網址列 */
+            .scroll-container {{ flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative; display: flex; flex-direction: column; padding-bottom: 80px; }}
             
             .countdown-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
             .cd-mode {{ display: flex; flex-direction: column; align-items: center; width: 100%; }}
@@ -344,8 +350,8 @@ def fetch_trello_data():
             .journey-sub {{ font-size: 13px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }}
             .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; }}
 
-            /* 膠囊凍結窗格 */
-            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            /* 🌟 膠囊完美凍結在 scroll-container 頂部 */
+            .sub-nav-wrapper {{ position: sticky; top: 0; background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
             .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.2s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
             .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
@@ -365,8 +371,8 @@ def fetch_trello_data():
             .city-header {{ margin-bottom: 24px; padding-left: 4px; margin-top: 5px; }}
             .date-row {{ display: flex; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px; }}
             .city-date {{ font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: 1px; }}
-            .weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; display: none; align-items: center; }}
-            .weather-badge.rainy {{ background: #FFE0E0; color: #E02424; }} 
+            .weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; display: none; align-items: center; gap: 4px; }}
+            .weather-badge.rainy {{ background: #E0E7FF; color: #3B82F6; }} 
             .city-title {{ font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-main); }}
             .highlight-title {{ color: var(--primary); }}
 
@@ -382,7 +388,7 @@ def fetch_trello_data():
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
             .card-cover-img {{ width: 100%; height: auto; display: block; border-bottom: 1px solid var(--border-color); background-color: #F8F9FA; }}
             
-            /* 🚀 V35 極簡小圖示按鈕設計 */
+            /* 極簡導航按鈕 */
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
             .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); flex: 1; }}
             .header-actions {{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; }}
@@ -442,6 +448,7 @@ def fetch_trello_data():
     </head>
     <body>
         <div class="app">
+            <!-- 🌟 固定的主導航 -->
             <div class="nav-bar">
                 <h1 class="nav-title">奧捷德匈</h1>
                 <div class="tab-switcher">
@@ -451,76 +458,80 @@ def fetch_trello_data():
                 </div>
             </div>
             
-            <div id="countdown-widget" class="countdown-wrapper" style="display: none;">
-                <div id="cd-mode" class="cd-mode">
-                    <div class="cd-title">✈️ 距離出發還剩</div>
-                    <div class="cd-timer">
-                        <div class="cd-box"><span id="cd-day" class="cd-num">--</span><span class="cd-label">天</span></div>
-                        <div class="cd-box"><span id="cd-hr" class="cd-num">--</span><span class="cd-label">時</span></div>
-                        <div class="cd-box"><span id="cd-min" class="cd-num">--</span><span class="cd-label">分</span></div>
-                        <div class="cd-box"><span id="cd-sec" class="cd-num">--</span><span class="cd-label">秒</span></div>
+            <!-- 🌟 可獨立滾動的內容區，解決 Safari 卡死與 Header 被吃掉的問題 -->
+            <div class="scroll-container">
+                <div id="countdown-widget" class="countdown-wrapper" style="display: none;">
+                    <div id="cd-mode" class="cd-mode">
+                        <div class="cd-title">✈️ 距離出發還剩</div>
+                        <div class="cd-timer">
+                            <div class="cd-box"><span id="cd-day" class="cd-num">--</span><span class="cd-label">天</span></div>
+                            <div class="cd-box"><span id="cd-hr" class="cd-num">--</span><span class="cd-label">時</span></div>
+                            <div class="cd-box"><span id="cd-min" class="cd-num">--</span><span class="cd-label">分</span></div>
+                            <div class="cd-box"><span id="cd-sec" class="cd-num">--</span><span class="cd-label">秒</span></div>
+                        </div>
+                    </div>
+                    <div id="journey-mode" class="journey-mode">
+                        <div id="journey-greeting" class="journey-greeting">✨ 旅程正式展開！</div>
+                        <div class="journey-sub">
+                            <span id="journey-location">目前位置分析中...</span>
+                            <span id="journey-weather" class="journey-weather-badge"></span>
+                        </div>
                     </div>
                 </div>
-                <div id="journey-mode" class="journey-mode">
-                    <div id="journey-greeting" class="journey-greeting">✨ 旅程正式展開！</div>
-                    <div class="journey-sub">
-                        <span id="journey-location">目前位置分析中...</span>
-                        <span id="journey-weather" class="journey-weather-badge"></span>
-                    </div>
-                </div>
-            </div>
-            
-            <div id="nav-itinerary" class="sub-nav-wrapper"><div class="pill-scroll">{day_pills_html}</div></div>
-            <div id="nav-info" class="sub-nav-wrapper" style="display: none;"><div class="pill-scroll">{info_pills_html}</div></div>
-            
-            <div class="content-area">
-                <div id="tab-itinerary" class="main-tab active">{day_contents_html}</div>
-                <div id="tab-info" class="main-tab">{info_contents_html}</div>
                 
-                <div id="tab-tools" class="main-tab">
-                    <div class="split-card" onclick="window.open('{LIGHTSPLIT_URL}', '_blank')">
-                        <div class="split-icon">💸</div>
-                        <div class="split-info">
-                            <div class="split-title">光速分帳 LightSplit</div>
-                            <div class="split-desc">開啟專屬公費帳本</div>
+                <!-- 🌟 會自動黏在 scroll-container 頂部的膠囊列 -->
+                <div id="nav-itinerary" class="sub-nav-wrapper"><div class="pill-scroll">{day_pills_html}</div></div>
+                <div id="nav-info" class="sub-nav-wrapper" style="display: none;"><div class="pill-scroll">{info_pills_html}</div></div>
+                
+                <div class="content-area">
+                    <div id="tab-itinerary" class="main-tab active">{day_contents_html}</div>
+                    <div id="tab-info" class="main-tab">{info_contents_html}</div>
+                    
+                    <div id="tab-tools" class="main-tab">
+                        <div class="split-card" onclick="window.open('{LIGHTSPLIT_URL}', '_blank')">
+                            <div class="split-icon">💸</div>
+                            <div class="split-info">
+                                <div class="split-title">光速分帳 LightSplit</div>
+                                <div class="split-desc">開啟專屬公費帳本</div>
+                            </div>
+                            <div class="split-arrow">↗</div>
                         </div>
-                        <div class="split-arrow">↗</div>
-                    </div>
 
-                    <div class="city-header"><span class="city-date">Calculator</span><h2 class="city-title">外幣匯率換算</h2></div>
-                    <div class="calc-wrapper">
-                        <div class="calc-screen">
-                            <select id="cur-select" class="currency-badge" onchange="updateCalc()">
-                                <option value="EUR">🇪🇺 EUR</option><option value="CZK">🇨🇿 CZK</option><option value="HUF">🇭🇺 HUF</option>
-                            </select>
-                            <div id="calc-formula" class="calc-formula"></div>
-                            <div id="calc-foreign" class="calc-foreign">0</div>
-                            <div id="calc-twd" class="calc-twd">≈ NT$ 0</div>
+                        <div class="city-header"><span class="city-date">Calculator</span><h2 class="city-title">外幣匯率換算</h2></div>
+                        <div class="calc-wrapper">
+                            <div class="calc-screen">
+                                <select id="cur-select" class="currency-badge" onchange="updateCalc()">
+                                    <option value="EUR">🇪🇺 EUR</option><option value="CZK">🇨🇿 CZK</option><option value="HUF">🇭🇺 HUF</option>
+                                </select>
+                                <div id="calc-formula" class="calc-formula"></div>
+                                <div id="calc-foreign" class="calc-foreign">0</div>
+                                <div id="calc-twd" class="calc-twd">≈ NT$ 0</div>
+                            </div>
+                            <div class="calc-keypad" id="keypad">
+                                <button class="key clear" onclick="pressKey('C')">C</button>
+                                <button class="key op" onclick="pressKey('(')">(</button>
+                                <button class="key op" onclick="pressKey(')')">)</button>
+                                <button class="key op" onclick="pressKey('/')">÷</button>
+                                <button class="key" onclick="pressKey('7')">7</button>
+                                <button class="key" onclick="pressKey('8')">8</button>
+                                <button class="key" onclick="pressKey('9')">9</button>
+                                <button class="key op" onclick="pressKey('*')">×</button>
+                                <button class="key" onclick="pressKey('4')">4</button>
+                                <button class="key" onclick="pressKey('5')">5</button>
+                                <button class="key" onclick="pressKey('6')">6</button>
+                                <button class="key op" onclick="pressKey('-')">−</button>
+                                <button class="key" onclick="pressKey('1')">1</button>
+                                <button class="key" onclick="pressKey('2')">2</button>
+                                <button class="key" onclick="pressKey('3')">3</button>
+                                <button class="key op" onclick="pressKey('+')">+</button>
+                                <button class="key" onclick="pressKey('0')">0</button>
+                                <button class="key" onclick="pressKey('.')">.</button>
+                                <button class="key" onclick="pressKey('DEL')">⌫</button>
+                                <button class="key equal" onclick="pressKey('=')">=</button>
+                            </div>
                         </div>
-                        <div class="calc-keypad" id="keypad">
-                            <button class="key clear" onclick="pressKey('C')">C</button>
-                            <button class="key op" onclick="pressKey('(')">(</button>
-                            <button class="key op" onclick="pressKey(')')">)</button>
-                            <button class="key op" onclick="pressKey('/')">÷</button>
-                            <button class="key" onclick="pressKey('7')">7</button>
-                            <button class="key" onclick="pressKey('8')">8</button>
-                            <button class="key" onclick="pressKey('9')">9</button>
-                            <button class="key op" onclick="pressKey('*')">×</button>
-                            <button class="key" onclick="pressKey('4')">4</button>
-                            <button class="key" onclick="pressKey('5')">5</button>
-                            <button class="key" onclick="pressKey('6')">6</button>
-                            <button class="key op" onclick="pressKey('-')">−</button>
-                            <button class="key" onclick="pressKey('1')">1</button>
-                            <button class="key" onclick="pressKey('2')">2</button>
-                            <button class="key" onclick="pressKey('3')">3</button>
-                            <button class="key op" onclick="pressKey('+')">+</button>
-                            <button class="key" onclick="pressKey('0')">0</button>
-                            <button class="key" onclick="pressKey('.')">.</button>
-                            <button class="key" onclick="pressKey('DEL')">⌫</button>
-                            <button class="key equal" onclick="pressKey('=')">=</button>
-                        </div>
+                        <div id="rate-hint" class="rate-status"><span class="dot offline"></span>載入匯率中...</div>
                     </div>
-                    <div id="rate-hint" class="rate-status"><span class="dot offline"></span>載入匯率中...</div>
                 </div>
             </div>
         </div>
@@ -533,7 +544,7 @@ def fetch_trello_data():
                 document.getElementById(tabId).classList.add('active');
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
-                window.scrollTo(0,0);
+                document.querySelector('.scroll-container').scrollTo(0,0);
             }}
 
             function switchSubTab(targetId, element, contentClass) {{
@@ -554,10 +565,11 @@ def fetch_trello_data():
                 }}
                 updateJourneyWeather(currentActiveCity);
                 
-                const offset = contentClass.includes('day') ? 250 : 145; 
-                const elementPosition = targetContent.getBoundingClientRect().top;
-                const offsetPosition = elementPosition + window.pageYOffset - offset;
-                window.scrollTo({{ top: offsetPosition, behavior: 'smooth' }});
+                // 🍎 精準定位：控制內部的 scroll-container 滑動
+                const scrollContainer = document.querySelector('.scroll-container');
+                const subNavHeight = document.querySelector('.sub-nav-wrapper').offsetHeight;
+                let elementTop = targetContent.offsetTop;
+                scrollContainer.scrollTo({{ top: elementTop - subNavHeight - 15, behavior: 'smooth' }});
             }}
 
             function toggleCard(triggerElement) {{
@@ -683,7 +695,7 @@ def fetch_trello_data():
                         updateCalc();
                     }}
                 }}).catch(() => {{
-                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用預設匯率`;
+                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用安全預設匯率`;
                 }});
 
             function pressKey(key) {{
@@ -736,11 +748,12 @@ def fetch_trello_data():
     return html_content
 
 # ==========================================
-# 3. Streamlit 渲染 (🍎 Apple 終極不當機版)
+# 3. Streamlit 渲染 (🍎 Apple 完美不卡死版)
 # ==========================================
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
+# 🍎 鎖死高度為螢幕大小，將捲動權力下放給 HTML
 components.html(final_html, height=1000, scrolling=False)
 
 if st.button("↻"):
