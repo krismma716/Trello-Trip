@@ -21,8 +21,8 @@ st.markdown("""
         .block-container { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
         iframe { border: none !important; width: 100vw !important; display: block !important; }
         
-        div[data-testid="stButton"] { position: fixed !important; bottom: 5px !important; right: 8px !important; z-index: 999999 !important; }
-        div[data-testid="stButton"] button { background-color: transparent !important; color: rgba(0,0,0,0.15) !important; border: none !important; box-shadow: none !important; padding: 5px !important; min-height: 0 !important; height: auto !important; transition: all 0.3s ease !important; }
+        div[data-testid="stButton"] { position: fixed !important; bottom: 5px !important; right: 5px !important; z-index: 999999 !important; }
+        div[data-testid="stButton"] button { background-color: transparent !important; color: rgba(0,0,0,0.15) !important; border: none !important; box-shadow: none !important; padding: 10px !important; transition: all 0.3s ease !important; }
         div[data-testid="stButton"] button p { font-size: 16px !important; margin: 0 !important; }
         div[data-testid="stButton"] button:hover { color: #FF5A5F !important; }
         div[data-testid="stButton"] button:active { transform: rotate(180deg) scale(0.9) !important; }
@@ -38,7 +38,7 @@ except KeyError:
     st.stop()
 
 # ==========================================
-# 2. 核心程式：加入 Pillow 影像極致瘦身引擎
+# 2. 核心程式：Pillow 高清瘦身 + 抓取資料
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_trello_data():
@@ -67,7 +67,6 @@ def fetch_trello_data():
         if in_list: html_lines.append('</ul>')
         return '<br>'.join(html_lines).replace('</ul><br>', '</ul>').replace('<br><ul', '<ul')
 
-    # 🛡️ 拯救 iPhone 的終極魔法：下載後強制壓縮！
     def download_and_compress_image(url, card_name):
         if not url: return None
         try:
@@ -84,21 +83,16 @@ def fetch_trello_data():
                 ctype = final_res.headers.get('Content-Type', '').lower()
                 content = final_res.content
                 
-                # 🍏 只要是圖片，管它原本多肥，一律送進 Pillow 壓縮廠！
                 try:
                     if 'image' in ctype or url.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
                         img = Image.open(io.BytesIO(content))
-                        if img.mode != 'RGB':
-                            img = img.convert('RGB')
-                        # 強制將圖片最大邊長縮小到 600px，維持原比例
-                        img.thumbnail((600, 600), Image.Resampling.LANCZOS)
+                        if img.mode != 'RGB': img = img.convert('RGB')
+                        img.thumbnail((800, 800), Image.Resampling.LANCZOS)
                         out = io.BytesIO()
-                        # 以 80% 的高品質 JPEG 存出，體積瞬間暴瘦 90%
-                        img.save(out, format='JPEG', quality=80)
+                        img.save(out, format='JPEG', quality=85)
                         content = out.getvalue()
                         ctype = 'image/jpeg'
-                except Exception as e:
-                    print(f"⚠️ {card_name} 圖片壓縮失敗，使用原檔: {e}")
+                except Exception: pass
 
                 b64 = base64.b64encode(content).decode('utf-8')
                 return f"data:{ctype};base64,{b64}"
@@ -127,25 +121,23 @@ def fetch_trello_data():
             cover_id = c.get('cover', {}).get('idAttachment')
             attachments = c.get('attachments', [])
             
+            def get_best_preview(previews):
+                if not previews: return None
+                previews.sort(key=lambda x: x['width'])
+                valid = [p for p in previews if p['width'] >= 600]
+                return valid[0]['url'] if valid else previews[-1]['url']
+
             if cover_id:
                 for att in attachments:
                     if att['id'] == cover_id:
-                        previews = att.get('previews', [])
-                        if previews:
-                            previews.sort(key=lambda x: x['width'])
-                            valid = [p for p in previews if p['width'] >= 600]
-                            img_url = valid[0]['url'] if valid else previews[-1]['url']
-                        else: img_url = att['url']
+                        optimal_url = get_best_preview(att.get('previews', []))
+                        img_url = optimal_url if optimal_url else att['url']
                         break
             if not img_url and attachments:
                 for att in attachments:
                     if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(('.png', '.jpg', '.jpeg')):
-                        previews = att.get('previews', [])
-                        if previews:
-                            previews.sort(key=lambda x: x['width'])
-                            valid = [p for p in previews if p['width'] >= 600]
-                            img_url = valid[0]['url'] if valid else previews[-1]['url']
-                        else: img_url = att['url']
+                        optimal_url = get_best_preview(att.get('previews', []))
+                        img_url = optimal_url if optimal_url else att['url']
                         break
             if not img_url and c.get('cover', {}).get('sharedSourceUrl'): 
                 img_url = c['cover']['sharedSourceUrl']
@@ -156,7 +148,6 @@ def fetch_trello_data():
 
     url_to_base64 = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        # 使用全新的瘦身下載器
         future_to_url = {executor.submit(download_and_compress_image, u, "圖片"): u for u in url_set}
         for future in concurrent.futures.as_completed(future_to_url):
             try: url_to_base64[future_to_url[future]] = future.result()
@@ -185,6 +176,7 @@ def fetch_trello_data():
                 target_url = card_to_url.get(card['id'])
                 img_src = url_to_base64.get(target_url) if target_url else None
                 img_html = f'<img src="{img_src}" class="card-cover-img" loading="lazy">' if img_src else ''
+                
                 has_desc = bool(card_desc)
                 chevron_html = '<div class="chevron"></div>' if has_desc else ''
                 onclick_html = 'onclick="toggleCard(this)"' if has_desc else ''
@@ -222,8 +214,7 @@ def fetch_trello_data():
         active, display = ("active", "block") if i == 0 else ("", "none")
         day_pills_html += f"""
         <div class="sub-pill {active}" onclick="switchSubTab(\'{day["id"]}\', this, \'day-content\')">
-            <span class="pill-title">{day["short_name"]}</span>
-            <span class="pill-subtitle">{day["subtitle"]}</span>
+            <span class="pill-title">{day["short_name"]}</span><span class="pill-subtitle">{day["subtitle"]}</span>
         </div>
         """
         day_contents_html += f"""
@@ -247,6 +238,9 @@ def fetch_trello_data():
         </div>
         """
 
+    # ==========================================
+    # 3. HTML 生成 (加入 iOS Safe Area 與降雨機率)
+    # ==========================================
     html_content = f"""
     <!DOCTYPE html>
     <html lang="zh-TW">
@@ -258,21 +252,24 @@ def fetch_trello_data():
             ::-webkit-scrollbar {{ display: none; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
             
-            /* 🍏 iOS 終極滑動解藥：讓 HTML 自己內部滾動，不再依賴外部 iframe 縮放 */
-            html, body {{ 
-                width: 100%; height: 100vh; overflow-x: hidden; overflow-y: auto; 
-                -webkit-overflow-scrolling: touch; background-color: #F8F9FA; color: #1E2022; user-select: none; 
+            /* 🍏 iOS 安全區域適配：不被瀏海和底部導航列吃掉 */
+            html, body {{ width: 100%; height: 100%; overflow-x: hidden; overflow-y: auto; -webkit-overflow-scrolling: touch; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
+            .app {{ 
+                width: 100%; max-width: 500px; margin: 0 auto; min-height: 100vh; position: relative;
+                padding-top: env(safe-area-inset-top); 
+                padding-bottom: calc(env(safe-area-inset-bottom) + 80px);
             }}
-            .app {{ width: 100%; max-width: 500px; margin: 0 auto; min-height: 100vh; padding-bottom: 80px; position: relative; }}
             
             :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
-            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: 0; z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; height: 74px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            /* 主導航 */
+            .nav-bar {{ background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: env(safe-area-inset-top); z-index: 100; padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .nav-title {{ font-size: 22px; font-weight: 900; color: var(--primary); letter-spacing: 0.5px; }}
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
             .tab-btn.active {{ background: #FFFFFF; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); }}
             
+            /* 倒數計時 */
             .countdown-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
             .cd-mode {{ display: flex; flex-direction: column; align-items: center; width: 100%; }}
             .cd-title {{ font-size: 13px; font-weight: 700; color: var(--text-sub); margin-bottom: 12px; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }}
@@ -285,7 +282,8 @@ def fetch_trello_data():
             .journey-sub {{ font-size: 13px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }}
             .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; }}
 
-            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); position: sticky; top: 74px; z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            /* 🍎 膠囊凍結窗格：動態計算頂部距離，絕不被吃掉 */
+            .sub-nav-wrapper {{ background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); position: sticky; top: calc(74px + env(safe-area-inset-top)); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
             .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.2s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
             .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
@@ -303,9 +301,11 @@ def fetch_trello_data():
             @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
             
             .city-header {{ margin-bottom: 24px; padding-left: 4px; margin-top: 5px; }}
-            .date-row {{ display: flex; align-items: center; margin-bottom: 6px; }}
+            .date-row {{ display: flex; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px; }}
             .city-date {{ font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: 1px; }}
-            .weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; margin-left: 12px; display: none; }}
+            .weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; display: none; align-items: center; }}
+            /* ☔️ 降雨機率過高時變色警告 */
+            .weather-badge.rainy {{ background: #FFE0E0; color: #E02424; }} 
             .city-title {{ font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-main); }}
             .highlight-title {{ color: var(--primary); }}
 
@@ -322,12 +322,10 @@ def fetch_trello_data():
             .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; border-bottom: 1px solid var(--border-color); background-color: #FFFFFF; }}
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
             .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); }}
-            
             .chevron {{ width: 28px; height: 28px; background: var(--primary-light); border-radius: 50%; display: flex; justify-content: center; align-items: center; transition: 0.4s ease; flex-shrink: 0; }}
             .chevron::after {{ content: ''; width: 7px; height: 7px; border-right: 2px solid var(--primary); border-bottom: 2px solid var(--primary); transform: translateY(-2px) rotate(45deg); transition: 0.3s; }}
             .open .chevron {{ transform: rotate(180deg); background: var(--primary); box-shadow: 0 4px 10px rgba(255, 107, 107, 0.3); }}
             .open .chevron::after {{ border-color: #FFFFFF; transform: translateY(2px) rotate(45deg); }}
-            
             .card-body {{ display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s ease; }}
             .card-body.open {{ grid-template-rows: 1fr; border-top: 1px solid var(--border-color); }}
             .card-content {{ overflow: hidden; }}
@@ -353,14 +351,12 @@ def fetch_trello_data():
             .action-btn:active {{ transform: scale(0.95); }}
             .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 15px; font-weight: 500; }}
 
-            /* 計算機 */
             .calc-wrapper {{ background: #FFFFFF; border-radius: 24px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); border: 1px solid var(--border-color); }}
             .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 20px; }}
             .currency-badge {{ position: absolute; top: 16px; left: 16px; background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
             .calc-formula {{ font-size: 15px; color: var(--text-sub); min-height: 22px; font-weight: 700; margin-top: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
             .calc-foreign {{ font-size: 40px; font-weight: 900; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -1px; margin-bottom: 4px; }}
             .calc-twd {{ font-size: 16px; font-weight: 800; color: #10B981; background: rgba(16, 185, 129, 0.1); display: inline-block; padding: 4px 10px; border-radius: 8px; align-self: flex-end; }}
-            
             .calc-keypad {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
             .key {{ background: #FFFFFF; color: var(--text-main); font-size: 20px; font-weight: 700; border-radius: 14px; aspect-ratio: 1.2/1; border: 1px solid var(--border-color); text-align: center; transition: 0.1s; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02); touch-action: manipulation; }}
             .key:active {{ transform: scale(0.92); background: var(--bg-color); }}
@@ -487,7 +483,8 @@ def fetch_trello_data():
                 }}
                 updateJourneyWeather(currentActiveCity);
                 
-                const offset = contentClass.includes('day') ? 250 : 145; 
+                // 🍎 動態對齊偏移量 (確保不被雙導航列遮擋)
+                const offset = contentClass.includes('day') ? 160 : 150; 
                 const elementPosition = targetContent.getBoundingClientRect().top;
                 const offsetPosition = elementPosition + window.pageYOffset - offset;
                 window.scrollTo({{ top: offsetPosition, behavior: 'smooth' }});
@@ -509,6 +506,7 @@ def fetch_trello_data():
 
             function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
 
+            // ☔️ 加入降雨機率的專業氣象雷達
             const coords = {{
                 "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
                 "薩爾斯堡": {{lat: 47.809, lon: 13.04}}, "哈修塔特": {{lat: 47.562, lon: 13.64}},
@@ -522,14 +520,31 @@ def fetch_trello_data():
             }}
             function updateWeatherBadge(badgeElement, targetCoord) {{
                 if (!targetCoord || !badgeElement) return;
-                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&current_weather=true`)
+                // 呼叫包含降水機率 (precipitation_probability) 的 API
+                fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&current_weather=true&hourly=precipitation_probability&forecast_days=1`)
                     .then(res => res.json())
                     .then(data => {{
                         if(data && data.current_weather) {{
                             let temp = Math.round(data.current_weather.temperature);
                             let emoji = getWeatherEmoji(data.current_weather.weathercode);
-                            badgeElement.innerHTML = `${{emoji}} ${{temp}}°C`;
-                            badgeElement.style.display = 'inline-block';
+                            
+                            // 抓取當天最高降雨機率
+                            let maxRainProb = 0;
+                            if(data.hourly && data.hourly.precipitation_probability) {{
+                                maxRainProb = Math.max(...data.hourly.precipitation_probability);
+                            }}
+                            
+                            let rainText = maxRainProb > 0 ? ` ☔${{maxRainProb}}%` : '';
+                            badgeElement.innerHTML = `${{emoji}} ${{temp}}°C${{rainText}}`;
+                            
+                            // ☔️ 如果降雨機率大於 50%，加上紅色警告樣式
+                            if (maxRainProb >= 50) {{
+                                badgeElement.classList.add('rainy');
+                            }} else {{
+                                badgeElement.classList.remove('rainy');
+                            }}
+                            
+                            badgeElement.style.display = 'inline-flex';
                         }}
                     }}).catch(() => {{ badgeElement.style.display = 'none'; }});
             }}
@@ -658,14 +673,9 @@ def fetch_trello_data():
     return html_content
 
 # ==========================================
-# 3. Streamlit 渲染 (🚀 高度交給 CSS 控制，不依賴 JS 縮放)
+# 3. Streamlit 渲染 (完全釋放高度)
 # ==========================================
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
-# 🍏 關鍵解藥：scrolling=True 讓 iframe 自己處理滾動，避開 Safari 記憶體超載
-components.html(final_html, height=850, scrolling=True)
-
-if st.button("↻"):
-    fetch_trello_data.clear() 
-    st.rerun()
+components.html(final_html, height=2500, scrolling=False)
