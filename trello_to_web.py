@@ -2,10 +2,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 import re
-import base64
-import concurrent.futures
-import io
-from PIL import Image
 
 # ==========================================
 # 0. 介面設定
@@ -17,57 +13,12 @@ TRIP_START_DATE = "2026-09-11T23:45:00+08:00"
 
 st.markdown("""
     <style>
-        /* 隱藏 Streamlit 預設雜訊 */
-        header {display: none !important;} 
-        footer {display: none !important;} 
-        .stDeployButton {display: none !important;} 
-        #MainMenu {display: none !important;}
-        
-        /* 🔐 鎖死母網頁 */
-        html, body, [data-testid="stAppViewContainer"], .main, .block-container { 
-            overflow: hidden !important; 
-            margin: 0 !important; 
-            padding: 0 !important; 
-            height: 100dvh !important; 
-            width: 100vw !important;
-            background-color: #F8F9FA !important;
-        }
-        
-        iframe { 
-            position: fixed !important;
-            top: 0 !important; 
-            left: 0 !important;
-            border: none !important; 
-            width: 100vw !important; 
-            height: 100dvh !important; 
-            display: block !important; 
-            z-index: 1 !important;
-        }
-        
-        /* 🔄 將更新按鈕移至「左下角」，徹底避開右側官方圖示 */
-        div[data-testid="stButton"] { 
-            position: fixed !important; 
-            bottom: 20px !important; 
-            left: 20px !important; 
-            z-index: 999999 !important; 
-        }
-        div[data-testid="stButton"] button { 
-            background: rgba(255, 255, 255, 0.6) !important; 
-            backdrop-filter: blur(10px) !important; 
-            -webkit-backdrop-filter: blur(10px) !important;
-            color: #8E8E93 !important; 
-            border: 1px solid rgba(0,0,0,0.05) !important; 
-            border-radius: 50% !important; 
-            width: 42px !important; 
-            height: 42px !important; 
-            padding: 0 !important;
-            display: flex !important; 
-            justify-content: center !important; 
-            align-items: center !important; 
-            box-shadow: 0 4px 10px rgba(0,0,0,0.05) !important; 
-            transition: all 0.2s ease !important; 
-        }
-        div[data-testid="stButton"] button p { font-size: 18px !important; margin: 0 !important; font-weight: bold !important;}
+        header {visibility: hidden;} footer {visibility: hidden;} .stDeployButton {display:none;} #MainMenu {display:none;}
+        .block-container { padding: 0 !important; max-width: 100% !important; margin: 0 !important; }
+        iframe { border: none !important; width: 100vw !important; display: block !important; }
+        div[data-testid="stButton"] { position: fixed !important; bottom: 5px !important; right: 8px !important; z-index: 999999 !important; }
+        div[data-testid="stButton"] button { background-color: transparent !important; color: rgba(0,0,0,0.15) !important; border: none !important; box-shadow: none !important; padding: 10px !important; transition: all 0.3s ease !important; }
+        div[data-testid="stButton"] button p { font-size: 16px !important; margin: 0 !important; font-weight: bold !important;}
         div[data-testid="stButton"] button:hover { color: #FF5A5F !important; background: rgba(255,255,255,0.9) !important; }
         div[data-testid="stButton"] button:active { transform: scale(0.9) !important; }
     </style>
@@ -82,7 +33,7 @@ except KeyError:
     st.stop()
 
 # ==========================================
-# 2. 核心程式：後端安全下載引擎
+# 2. 核心程式：Trello 直取資料
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_trello_data():
@@ -117,38 +68,6 @@ def fetch_trello_data():
         if in_list: html_lines.append('</ul>')
         return '<br>'.join(html_lines).replace('</ul><br>', '</ul>').replace('<br><ul', '<ul')
 
-    def download_real_attachment(url):
-        if not url: return None
-        try:
-            if "trello.com" in url:
-                headers = {"Authorization": f'OAuth oauth_consumer_key="{API_KEY}", oauth_token="{TOKEN}"'}
-                res = requests.get(url, headers=headers, allow_redirects=False, timeout=5)
-                if res.status_code in [301, 302, 303, 307, 308]:
-                    aws_url = res.headers.get('Location')
-                    final_res = requests.get(aws_url, timeout=10)
-                else: 
-                    final_res = res
-            else: 
-                final_res = requests.get(url, timeout=10)
-
-            if final_res.status_code == 200:
-                ctype = final_res.headers.get('Content-Type', '').lower()
-                content = final_res.content
-                try:
-                    if 'image' in ctype or url.lower().endswith(('.png', '.jpg', '.jpeg', '.webp')):
-                        img = Image.open(io.BytesIO(content))
-                        if img.mode != 'RGB': img = img.convert('RGB')
-                        img.thumbnail((800, 800), Image.Resampling.LANCZOS)
-                        out = io.BytesIO()
-                        img.save(out, format='JPEG', quality=85)
-                        content = out.getvalue()
-                        ctype = 'image/jpeg'
-                except Exception: pass
-                b64 = base64.b64encode(content).decode('utf-8')
-                return f"data:{ctype};base64,{b64}"
-        except Exception: pass
-        return None
-
     lists_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/lists", params={'key': API_KEY, 'token': TOKEN})
     cards_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/cards", params={'key': API_KEY, 'token': TOKEN, 'attachments': 'true'})
 
@@ -162,46 +81,6 @@ def fetch_trello_data():
         lid = c['idList']
         if lid not in cards_by_list: cards_by_list[lid] = []
         cards_by_list[lid].append(c)
-
-    url_set = set()
-    card_to_url = {}
-    for lst in lists:
-        for c in cards_by_list.get(lst['id'], []):
-            img_url = None
-            cover_id = c.get('cover', {}).get('idAttachment')
-            attachments = c.get('attachments', [])
-            
-            def get_optimal_preview(previews):
-                if not previews: return None
-                previews.sort(key=lambda x: x['width'])
-                valid = [p for p in previews if p['width'] >= 600]
-                return valid[0]['url'] if valid else previews[-1]['url']
-
-            if cover_id:
-                for att in attachments:
-                    if att['id'] == cover_id:
-                        optimal_url = get_optimal_preview(att.get('previews', []))
-                        img_url = optimal_url if optimal_url else att['url']
-                        break
-            if not img_url and attachments:
-                for att in attachments:
-                    if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(('.png', '.jpg', '.jpeg')):
-                        optimal_url = get_optimal_preview(att.get('previews', []))
-                        img_url = optimal_url if optimal_url else att['url']
-                        break
-            if not img_url and c.get('cover', {}).get('sharedSourceUrl'): 
-                img_url = c['cover']['sharedSourceUrl']
-                
-            if img_url:
-                url_set.add(img_url)
-                card_to_url[c['id']] = img_url
-
-    url_to_base64 = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        future_to_url = {executor.submit(download_real_attachment, u): u for u in url_set}
-        for future in concurrent.futures.as_completed(future_to_url):
-            try: url_to_base64[future_to_url[future]] = future.result()
-            except Exception: url_to_base64[future_to_url[future]] = None
 
     days_data, info_data = [], []
     for lst in lists:
@@ -231,6 +110,31 @@ def fetch_trello_data():
             else:
                 card_desc = parse_markdown(raw_desc)
             
+            img_url = None
+            cover_id = card.get('cover', {}).get('idAttachment')
+            attachments = card.get('attachments', [])
+            
+            def get_best_preview(previews):
+                if not previews: return None
+                previews.sort(key=lambda x: x['width'])
+                valid = [p for p in previews if p['width'] >= 800]
+                return valid[0]['url'] if valid else previews[-1]['url']
+
+            if cover_id:
+                for att in attachments:
+                    if att['id'] == cover_id:
+                        optimal_url = get_best_preview(att.get('previews', []))
+                        img_url = optimal_url if optimal_url else att['url']
+                        break
+            if not img_url and attachments:
+                for att in attachments:
+                    if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(('.png', '.jpg', '.jpeg')):
+                        optimal_url = get_best_preview(att.get('previews', []))
+                        img_url = optimal_url if optimal_url else att['url']
+                        break
+            if not img_url and card.get('cover', {}).get('sharedSourceUrl'): 
+                img_url = card['cover']['sharedSourceUrl']
+                
             if is_checklist:
                 desc_html = f'<div class="check-desc">{card_desc}</div>' if card_desc else ''
                 cards_html += f"""
@@ -240,10 +144,7 @@ def fetch_trello_data():
                 </div>
                 """
             else:
-                target_url = card_to_url.get(card['id'])
-                img_src = url_to_base64.get(target_url) if target_url else None
-                img_html = f'<img src="{img_src}" class="card-cover-img" loading="lazy">' if img_src else ''
-                
+                img_html = f'<img src="{img_url}" class="card-cover-img" loading="lazy">' if img_url else ''
                 has_desc = bool(card_desc)
                 chevron_html = '<div class="chevron"></div>' if has_desc else ''
                 onclick_html = 'onclick="toggleCard(this)"' if has_desc else ''
@@ -251,12 +152,14 @@ def fetch_trello_data():
                 
                 cards_html += f"""
                 <div class="ios-card">
-                    {img_html}
-                    <div class="card-header" {onclick_html} style="{cursor_style}">
-                        <h3 class="card-title">{card_name}</h3>
-                        <div class="header-actions">
-                            {link_buttons_html}
-                            {chevron_html}
+                    <div class="card-trigger" {onclick_html} style="{cursor_style}">
+                        {img_html}
+                        <div class="card-header">
+                            <h3 class="card-title">{card_name}</h3>
+                            <div class="header-actions">
+                                {link_buttons_html}
+                                {chevron_html}
+                            </div>
                         </div>
                     </div>
                     <div class="card-body"><div class="card-content"><div class="card-desc">{card_desc}</div></div></div>
@@ -281,6 +184,9 @@ def fetch_trello_data():
         else:
             info_data.append({'id': list_id, 'short_name': list_name, 'html': cards_html})
 
+    # ==========================================
+    # 3. HTML 生成
+    # ==========================================
     day_pills_html, day_contents_html = "", ""
     for i, day in enumerate(days_data):
         active, display = ("active", "block") if i == 0 else ("", "none")
@@ -321,21 +227,17 @@ def fetch_trello_data():
             @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@600;700;800;900&family=Noto+Sans+TC:wght@500;700;900&display=swap');
             ::-webkit-scrollbar {{ display: none; }}
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
-            
-            /* 🚀 物理隔離佈局：徹底根除 Header 跑版問題 */
             html, body {{ height: 100dvh; overflow: hidden; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
             .app {{ display: flex; flex-direction: column; height: 100dvh; width: 100%; max-width: 500px; margin: 0 auto; background-color: #F8F9FA; position: relative; }}
             
             :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
 
-            /* 🌟 永遠不動的主導航列 */
-            .nav-bar {{ flex-shrink: 0; background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); z-index: 100; }}
-            .nav-title {{ font-size: 22px; font-weight: 900; color: var(--primary); letter-spacing: 0.5px; }}
+            .nav-bar {{ flex-shrink: 0; background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); z-index: 100; }}
+            .nav-title {{ font-size: 22px; font-weight: 900; background: linear-gradient(135deg, #FF5A5F 0%, #FF7E67 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.5px; }}
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
             .tab-btn.active {{ background: #FFFFFF; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); }}
             
-            /* 🌟 專屬滾動容器：所有上下滑動都在這裡發生，絕不干擾 Safari 網址列 */
             .scroll-container {{ flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative; display: flex; flex-direction: column; padding-bottom: 80px; }}
             
             .countdown-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
@@ -350,8 +252,7 @@ def fetch_trello_data():
             .journey-sub {{ font-size: 13px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }}
             .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; }}
 
-            /* 🌟 膠囊完美凍結在 scroll-container 頂部 */
-            .sub-nav-wrapper {{ position: sticky; top: 0; background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .sub-nav-wrapper {{ position: sticky; top: 0; background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
             .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
             .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.2s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
             .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
@@ -386,13 +287,11 @@ def fetch_trello_data():
 
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
-            .card-cover-img {{ width: 100%; height: auto; display: block; border-bottom: 1px solid var(--border-color); background-color: #F8F9FA; }}
+            .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; border-bottom: 1px solid var(--border-color); background-color: #FFFFFF; }}
             
-            /* 極簡導航按鈕 */
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
             .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); flex: 1; }}
             .header-actions {{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; }}
-            
             .icon-btn {{ width: 32px; height: 32px; border-radius: 10px; display: flex; justify-content: center; align-items: center; text-decoration: none; font-size: 16px; transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1); }}
             .map-icon {{ background: #E8F0FE; color: #1A73E8; }} 
             .link-icon {{ background: #F2F2F7; color: #8E8E93; }} 
@@ -448,7 +347,6 @@ def fetch_trello_data():
     </head>
     <body>
         <div class="app">
-            <!-- 🌟 固定的主導航 -->
             <div class="nav-bar">
                 <h1 class="nav-title">奧捷德匈</h1>
                 <div class="tab-switcher">
@@ -458,7 +356,6 @@ def fetch_trello_data():
                 </div>
             </div>
             
-            <!-- 🌟 可獨立滾動的內容區，解決 Safari 卡死與 Header 被吃掉的問題 -->
             <div class="scroll-container">
                 <div id="countdown-widget" class="countdown-wrapper" style="display: none;">
                     <div id="cd-mode" class="cd-mode">
@@ -479,7 +376,6 @@ def fetch_trello_data():
                     </div>
                 </div>
                 
-                <!-- 🌟 會自動黏在 scroll-container 頂部的膠囊列 -->
                 <div id="nav-itinerary" class="sub-nav-wrapper"><div class="pill-scroll">{day_pills_html}</div></div>
                 <div id="nav-info" class="sub-nav-wrapper" style="display: none;"><div class="pill-scroll">{info_pills_html}</div></div>
                 
@@ -544,6 +440,21 @@ def fetch_trello_data():
                 document.getElementById(tabId).classList.add('active');
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
+                
+                // 切回行程頁時，檢查目前 active 的天數是不是 D01
+                const widgetWrapper = document.getElementById('countdown-widget');
+                if (tabId === 'tab-itinerary') {{
+                    const activeDayPill = document.querySelector('#nav-itinerary .sub-pill.active');
+                    const allDayPills = Array.from(document.querySelectorAll('#nav-itinerary .sub-pill'));
+                    if (activeDayPill && allDayPills.indexOf(activeDayPill) === 0) {{
+                        widgetWrapper.style.display = 'flex';
+                    }} else {{
+                        widgetWrapper.style.display = 'none';
+                    }}
+                }} else {{
+                    widgetWrapper.style.display = 'none';
+                }}
+                
                 document.querySelector('.scroll-container').scrollTo(0,0);
             }}
 
@@ -565,7 +476,18 @@ def fetch_trello_data():
                 }}
                 updateJourneyWeather(currentActiveCity);
                 
-                // 🍎 精準定位：控制內部的 scroll-container 滑動
+                // 🚀 V37 關鍵邏輯：點擊其他天，隱藏倒數計時器
+                const widgetWrapper = document.getElementById('countdown-widget');
+                if (contentClass.includes('day')) {{
+                    const allDayPills = Array.from(parentNav.querySelectorAll('.sub-pill'));
+                    const isFirstDay = allDayPills.indexOf(element) === 0;
+                    if (isFirstDay) {{
+                        widgetWrapper.style.display = 'flex';
+                    }} else {{
+                        widgetWrapper.style.display = 'none';
+                    }}
+                }}
+                
                 const scrollContainer = document.querySelector('.scroll-container');
                 const subNavHeight = document.querySelector('.sub-nav-wrapper').offsetHeight;
                 let elementTop = targetContent.offsetTop;
@@ -588,6 +510,7 @@ def fetch_trello_data():
 
             function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
 
+            // ☔️ 天氣雷達
             const coords = {{
                 "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
                 "薩爾斯堡": {{lat: 47.809, lon: 13.04}}, "哈修塔特": {{lat: 47.562, lon: 13.64}},
@@ -615,7 +538,6 @@ def fetch_trello_data():
                             
                             let rainText = maxRainProb > 0 ? ` ☔${{maxRainProb}}%` : '';
                             badgeElement.innerHTML = `${{emoji}} ${{temp}}°C${{rainText}}`;
-                            
                             if (maxRainProb >= 50) badgeElement.classList.add('rainy');
                             else badgeElement.classList.remove('rainy');
                             
@@ -683,6 +605,7 @@ def fetch_trello_data():
                 document.getElementById('cd-sec').innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
             }}, 1000);
 
+            // 🧮 計算機邏輯
             let currentFormula = "";
             let rates = {{ 'EUR': 34.50, 'CZK': 1.35, 'HUF': 0.088 }};
             let isResult = false;
@@ -695,7 +618,7 @@ def fetch_trello_data():
                         updateCalc();
                     }}
                 }}).catch(() => {{
-                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用安全預設匯率`;
+                    document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用預設匯率`;
                 }});
 
             function pressKey(key) {{
@@ -748,13 +671,12 @@ def fetch_trello_data():
     return html_content
 
 # ==========================================
-# 3. Streamlit 渲染 (🍎 Apple 完美不卡死版)
+# 3. Streamlit 渲染 (鎖死 iframe 不准它干擾 HTML)
 # ==========================================
 with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
     final_html = fetch_trello_data()
 
-# 🍎 鎖死高度為螢幕大小，將捲動權力下放給 HTML
-components.html(final_html, height=1000, scrolling=False)
+components.html(final_html, height=10000, scrolling=False)
 
 if st.button("↻"):
     fetch_trello_data.clear() 
