@@ -2,6 +2,9 @@ import streamlit as st
 import streamlit.components.v1 as components
 import requests
 import re
+import base64
+import io
+from PIL import Image
 
 # ==========================================
 # 0. 介面設定
@@ -67,6 +70,31 @@ def fetch_trello_data():
                 html_lines.append(line)
         if in_list: html_lines.append('</ul>')
         return '<br>'.join(html_lines).replace('</ul><br>', '</ul>').replace('<br><ul', '<ul')
+
+    # 🌟 新增：帶有 Trello 權限的 Base64 圖片下載轉換器
+    def get_base64_image(url):
+        if not url: return None
+        try:
+            # 加入 Trello OAuth 驗證，破解 403 Forbidden
+            headers = {"Authorization": f'OAuth oauth_consumer_key="{API_KEY}", oauth_token="{TOKEN}"'}
+            res = requests.get(url, headers=headers, timeout=10)
+            
+            if res.status_code == 200:
+                img = Image.open(io.BytesIO(res.content))
+                # 轉為 RGB 避免透明 PNG 轉 JPEG 報錯
+                if img.mode in ("RGBA", "P"):
+                    img = img.convert("RGB")
+                
+                # 壓縮圖片尺寸，降低 HTML 大小
+                img.thumbnail((800, 800))
+                
+                buffered = io.BytesIO()
+                img.save(buffered, format="JPEG", quality=80)
+                img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+                return f"data:image/jpeg;base64,{img_str}"
+        except Exception as e:
+            print(f"圖片載入失敗: {e}")
+        return None
 
     lists_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/lists", params={'key': API_KEY, 'token': TOKEN})
     cards_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/cards", params={'key': API_KEY, 'token': TOKEN, 'attachments': 'true'})
@@ -144,7 +172,13 @@ def fetch_trello_data():
                 </div>
                 """
             else:
-                img_html = f'<img src="{img_url}" class="card-cover-img" loading="lazy">' if img_url else ''
+                # 🌟 生成 Base64 圖片 HTML
+                img_html = ""
+                if img_url:
+                    base64_data = get_base64_image(img_url)
+                    if base64_data:
+                        img_html = f'<img src="{base64_data}" class="card-cover-img" loading="lazy">'
+                
                 has_desc = bool(card_desc)
                 chevron_html = '<div class="chevron"></div>' if has_desc else ''
                 onclick_html = 'onclick="toggleCard(this)"' if has_desc else ''
@@ -441,7 +475,6 @@ def fetch_trello_data():
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
                 
-                // 切回行程頁時，檢查目前 active 的天數是不是 D01
                 const widgetWrapper = document.getElementById('countdown-widget');
                 if (tabId === 'tab-itinerary') {{
                     const activeDayPill = document.querySelector('#nav-itinerary .sub-pill.active');
@@ -476,7 +509,6 @@ def fetch_trello_data():
                 }}
                 updateJourneyWeather(currentActiveCity);
                 
-                // 🚀 V37 關鍵邏輯：點擊其他天，隱藏倒數計時器
                 const widgetWrapper = document.getElementById('countdown-widget');
                 if (contentClass.includes('day')) {{
                     const allDayPills = Array.from(parentNav.querySelectorAll('.sub-pill'));
@@ -510,7 +542,6 @@ def fetch_trello_data():
 
             function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
 
-            // ☔️ 天氣雷達
             const coords = {{
                 "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
                 "薩爾斯堡": {{lat: 47.809, lon: 13.04}}, "哈修塔特": {{lat: 47.562, lon: 13.64}},
@@ -605,7 +636,6 @@ def fetch_trello_data():
                 document.getElementById('cd-sec').innerText = Math.floor((distance % (1000 * 60)) / 1000).toString().padStart(2, '0');
             }}, 1000);
 
-            // 🧮 計算機邏輯
             let currentFormula = "";
             let rates = {{ 'EUR': 34.50, 'CZK': 1.35, 'HUF': 0.088 }};
             let isResult = false;
