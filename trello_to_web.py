@@ -209,7 +209,6 @@ def fetch_trello_data():
                     b64_low, b64_high = base64_cache.get(img_url, (None, None))
                     if b64_low:
                         if "行程總覽" in card_name and b64_high:
-                            # 💡 修改點 1: 提示文字改為簡短的 "🔍 放大"
                             img_html = f'''
                             <div class="img-wrapper" onclick="openModal(this, event);">
                                 <img src="{b64_low}" class="card-cover-img" loading="lazy">
@@ -253,15 +252,21 @@ def fetch_trello_data():
                 
                 is_moving_day = "移動日" in location
                 display_location = location.replace("(移動日)", "").replace("（移動日）", "").strip()
-                moving_badge_html = '<span class="moving-badge">🧳 換宿移動</span>' if is_moving_day else ''
                 
                 clean_location = re.sub(r'\(.*?\)', '', location).strip()
                 capsule_subtitle = clean_location[:4] if clean_location else date_info.split(' ')[-1]
+                
+                country_code = "DEFAULT"
+                if any(c in display_location for c in ["布拉格", "庫倫洛夫", "CK"]): country_code = "CZ"
+                elif any(c in display_location for c in ["維也納", "薩爾斯堡", "哈修塔特"]): country_code = "AT"
+                elif any(c in display_location for c in ["布達佩斯"]): country_code = "HU"
+                elif any(c in display_location for c in ["國王湖", "慕尼黑"]): country_code = "DE"
+                
             else:
                 short_name, date_info, location = list_name.split(' ')[0], "", list_name
                 capsule_subtitle = "行程"
                 display_location = location
-                moving_badge_html = ""
+                country_code = "DEFAULT"
 
             days_data.append({
                 'id': list_id, 
@@ -269,7 +274,7 @@ def fetch_trello_data():
                 'subtitle': capsule_subtitle, 
                 'date_info': date_info, 
                 'location': display_location, 
-                'moving_badge': moving_badge_html,
+                'country': country_code,
                 'html': cards_html
             })
         else:
@@ -287,11 +292,12 @@ def fetch_trello_data():
             <span class="pill-subtitle">{day["subtitle"]}</span>
         </div>
         """
+        moving_badge_html = '<span class="moving-badge">🧳 換宿移動</span>' if "移動" in day['location'] or "搭飛機" in day['location'] else ''
         day_contents_html += f"""
-        <div id="{day['id']}" class="day-content sub-content" style="display: {display};" data-location="{day['location']}" data-date="{day['date_info']}">
+        <div id="{day['id']}" class="day-content sub-content" style="display: {display};" data-location="{day['location']}" data-date="{day['date_info']}" data-country="{day['country']}">
             <div class="city-header">
                 <div class="date-row"><span class="city-date">📅 {day['date_info']}</span> <span class="weather-badge"></span></div>
-                <h2 class="city-title">{day['location']} {day['moving_badge']}</h2>
+                <h2 class="city-title">{day['location']} {moving_badge_html}</h2>
             </div>
             <div class="card-list">{day['html']}</div>
         </div>
@@ -321,15 +327,62 @@ def fetch_trello_data():
             html, body {{ height: 100dvh; overflow: hidden; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
             .app {{ display: flex; flex-direction: column; height: 100dvh; width: 100%; max-width: 500px; margin: 0 auto; background-color: #F8F9FA; position: relative; }}
             
-            :root {{ --primary: #FF6B6B; --primary-light: #FFF0F0; --text-main: #1E2022; --text-sub: #6B7280; --bg-color: #F8F9FA; --border-color: #F3F4F6; }}
+            :root {{ 
+                --dyn-primary: #FF6B6B; 
+                --dyn-grad-start: #FF5A5F; 
+                --dyn-grad-end: #FF7E67; 
+                --dyn-light: #FFF0F0; 
+                --text-main: #1E2022; 
+                --text-sub: #6B7280; 
+                --bg-color: #F8F9FA; 
+                --border-color: #F3F4F6; 
+                --nav-height: 80px; 
+            }}
 
-            .nav-bar {{ flex-shrink: 0; background: rgba(248, 249, 250, 0.9); backdrop-filter: blur(20px); padding: 20px 20px 14px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.02); z-index: 100; }}
-            .nav-title {{ font-size: 22px; font-weight: 900; background: linear-gradient(135deg, #FF5A5F 0%, #FF7E67 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.5px; }}
+            /* 💡 徹底移除浮水印，專注在乾淨的毛玻璃特效 */
+            .nav-bar {{ 
+                position: absolute; 
+                top: 0; left: 0; right: 0; 
+                height: var(--nav-height);
+                background: rgba(248, 249, 250, 0.7); /* 降低白底透明度，讓底下圖片透上來 */
+                backdrop-filter: saturate(180%) blur(20px); 
+                -webkit-backdrop-filter: saturate(180%) blur(20px); 
+                border-bottom: 1px solid rgba(0,0,0,0.05); 
+                padding: 0 20px; 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                z-index: 1000; 
+            }}
+            
+            .nav-title {{ font-size: 22px; font-weight: 900; background: linear-gradient(135deg, var(--dyn-grad-start) 0%, var(--dyn-grad-end) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.5px; transition: all 0.4s ease; margin: 0; }}
+            
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
-            .tab-btn.active {{ background: #FFFFFF; color: var(--primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); }}
+            .tab-btn.active {{ background: #FFFFFF; color: var(--dyn-primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); transition: color 0.4s ease, transform 0.3s; }}
             
-            .scroll-container {{ flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; position: relative; display: flex; flex-direction: column; padding-bottom: 80px; }}
+            /* 💡 修正滾動層，確保內容會被捲動到導覽列 "底下" 產生透視效果 */
+            .scroll-container {{ flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; position: absolute; top: 0; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; padding-top: var(--nav-height); padding-bottom: 40px; z-index: 1; }}
+            
+            /* 💡 日期膠囊區塊：拿掉死白的背景，改為跟隨背景色或微毛玻璃 */
+            .sub-nav-wrapper {{ position: sticky; top: 0; background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(10px); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
+            .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.3s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
+            .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
+            .pill-subtitle {{ font-size: 10px; font-weight: 700; color: var(--text-sub); margin-top: 2px; white-space: nowrap; transition: 0.2s; }}
+            
+            .sub-pill.active {{ background: var(--dyn-primary); border-color: var(--dyn-primary); box-shadow: 0 8px 20px rgba(0,0,0,0.15); transform: translateY(-2px); }}
+            .sub-pill.active .pill-title, .sub-pill.active .pill-subtitle {{ color: #FFFFFF; }}
+            
+            .info-pill {{ flex-direction: row; padding: 10px 20px; white-space: nowrap; width: auto; min-width: 0; }}
+            .info-pill .pill-subtitle {{ display: none; }}
+            .info-pill .pill-title {{ font-size: 14px; font-weight: 700; display: block; }}
+            
+            .content-area {{ padding: 24px 20px; flex: 1; }}
+            .main-tab {{ display: none; }}
+            .main-tab.active {{ display: block; animation: fadeUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
+            @keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+            @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
             
             .countdown-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
             .cd-mode {{ display: flex; flex-direction: column; align-items: center; width: 100%; }}
@@ -339,36 +392,19 @@ def fetch_trello_data():
             .cd-num {{ font-size: 32px; font-weight: 900; color: var(--text-main); line-height: 1; }}
             .cd-label {{ font-size: 11px; font-weight: 700; color: var(--text-sub); text-transform: uppercase; margin-top: 4px; }}
             .journey-mode {{ display: none; flex-direction: column; align-items: center; width: 100%; text-align: center; animation: fadeIn 0.8s ease; }}
-            .journey-greeting {{ font-size: 18px; font-weight: 800; color: var(--primary); margin-bottom: 6px; }}
+            .journey-greeting {{ font-size: 18px; font-weight: 800; color: var(--dyn-primary); margin-bottom: 6px; transition: color 0.4s ease; }}
             .journey-sub {{ font-size: 13px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }}
-            .journey-weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; }}
-
-            .sub-nav-wrapper {{ position: sticky; top: 0; background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(20px); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
-            .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
-            .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.2s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
-            .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
-            .pill-subtitle {{ font-size: 10px; font-weight: 700; color: var(--text-sub); margin-top: 2px; white-space: nowrap; transition: 0.2s; }}
-            .sub-pill.active {{ background: var(--primary); border-color: var(--primary); box-shadow: 0 8px 20px rgba(255, 107, 107, 0.25); transform: translateY(-2px); }}
-            .sub-pill.active .pill-title, .sub-pill.active .pill-subtitle {{ color: #FFFFFF; }}
-            .info-pill {{ flex-direction: row; padding: 10px 20px; white-space: nowrap; width: auto; min-width: 0; }}
-            .info-pill .pill-subtitle {{ display: none; }}
-            .info-pill .pill-title {{ font-size: 14px; font-weight: 700; display: block; }}
-            
-            .content-area {{ padding: 24px 20px; }}
-            .main-tab {{ display: none; }}
-            .main-tab.active {{ display: block; animation: fadeUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
-            @keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
-            @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
+            .journey-weather-badge {{ background: var(--dyn-light); color: var(--dyn-primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; transition: all 0.4s ease; }}
             
             .city-header {{ margin-bottom: 24px; padding-left: 4px; margin-top: 5px; }}
             .date-row {{ display: flex; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px; }}
-            .city-date {{ font-size: 13px; font-weight: 800; color: var(--primary); letter-spacing: 1px; }}
-            .weather-badge {{ background: var(--primary-light); color: var(--primary); padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; display: none; align-items: center; gap: 4px; }}
-            .weather-badge.rainy {{ background: #E0E7FF; color: #3B82F6; }} 
+            .city-date {{ font-size: 13px; font-weight: 800; color: var(--dyn-primary); letter-spacing: 1px; transition: color 0.4s ease; }}
+            .weather-badge {{ background: var(--dyn-light); color: var(--dyn-primary); padding: 4px 10px; border-radius: 10px; font-size: 12px; font-weight: 800; display: none; align-items: center; gap: 4px; transition: all 0.4s ease; }}
+            .weather-badge.rainy {{ background: #E0E7FF !important; color: #3B82F6 !important; }} 
             .city-title {{ font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-main); }}
-            .highlight-title {{ color: var(--primary); }}
+            .highlight-title {{ color: var(--dyn-primary); transition: color 0.4s ease; }}
             
-            .moving-badge {{ display: inline-flex; align-items: center; background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%); color: #D8334A; font-size: 15px; font-weight: 800; padding: 4px 10px; border-radius: 12px; vertical-align: middle; margin-left: 8px; box-shadow: 0 4px 10px rgba(255, 154, 158, 0.3); letter-spacing: 0.5px; transform: translateY(-4px); }}
+            .moving-badge {{ display: inline-flex; align-items: center; background: var(--dyn-light); color: var(--dyn-primary); border: 1px solid var(--dyn-primary); font-size: 14px; font-weight: 800; padding: 2px 10px; border-radius: 10px; vertical-align: middle; margin-left: 8px; letter-spacing: 0.5px; transform: translateY(-4px); transition: all 0.4s ease; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }}
 
             .split-card {{ background: linear-gradient(135deg, #1E2022 0%, #374151 100%); border-radius: 20px; padding: 20px; display: flex; align-items: center; color: white; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; }}
             .split-card:active {{ transform: scale(0.96); }}
@@ -381,7 +417,6 @@ def fetch_trello_data():
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
             
-            /* 💡 修改點 1: 卡片右下角的提示縮小、底色變淡、不擋字 */
             .img-wrapper {{ position: relative; cursor: pointer; border-bottom: 1px solid var(--border-color); -webkit-tap-highlight-color: transparent; }}
             .zoom-hint {{ position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.55); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }}
             .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; background-color: #FFFFFF; }}
@@ -394,9 +429,9 @@ def fetch_trello_data():
             .link-icon {{ background: #F2F2F7; color: #8E8E93; }} 
             .icon-btn:active {{ transform: scale(0.9); filter: brightness(0.95); }}
             
-            .chevron {{ width: 32px; height: 32px; background: var(--primary-light); border-radius: 10px; display: flex; justify-content: center; align-items: center; transition: 0.4s ease; flex-shrink: 0; }}
-            .chevron::after {{ content: ''; width: 8px; height: 8px; border-right: 2.5px solid var(--primary); border-bottom: 2.5px solid var(--primary); transform: translateY(-2px) rotate(45deg); transition: 0.3s; }}
-            .open .chevron {{ transform: rotate(180deg); background: var(--primary); box-shadow: 0 4px 10px rgba(255, 107, 107, 0.3); }}
+            .chevron {{ width: 32px; height: 32px; background: var(--dyn-light); border-radius: 10px; display: flex; justify-content: center; align-items: center; transition: all 0.4s ease; flex-shrink: 0; }}
+            .chevron::after {{ content: ''; width: 8px; height: 8px; border-right: 2.5px solid var(--dyn-primary); border-bottom: 2.5px solid var(--dyn-primary); transform: translateY(-2px) rotate(45deg); transition: all 0.4s ease; }}
+            .open .chevron {{ transform: rotate(180deg); background: var(--dyn-primary); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
             .open .chevron::after {{ border-color: #FFFFFF; transform: translateY(2px) rotate(45deg); }}
             
             .card-body {{ display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s ease; }}
@@ -422,7 +457,6 @@ def fetch_trello_data():
             .highlight-text {{ font-weight: 700; color: var(--text-main); box-shadow: inset 0 -8px 0 rgba(255, 204, 0, 0.3); }}
             .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 15px; font-weight: 500; }}
 
-            /* 計算機 */
             .calc-wrapper {{ background: #FFFFFF; border-radius: 24px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); border: 1px solid var(--border-color); }}
             .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 20px; }}
             .currency-badge {{ position: absolute; top: 16px; left: 16px; background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
@@ -433,9 +467,9 @@ def fetch_trello_data():
             .calc-keypad {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
             .key {{ background: #FFFFFF; color: var(--text-main); font-size: 20px; font-weight: 700; border-radius: 14px; aspect-ratio: 1.2/1; border: 1px solid var(--border-color); text-align: center; transition: 0.1s; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02); touch-action: manipulation; }}
             .key:active {{ transform: scale(0.92); background: var(--bg-color); }}
-            .key.op {{ color: var(--primary); font-size: 22px; background: var(--primary-light); border-color: transparent; }}
-            .key.op:active {{ background: #FFE0E0; }}
-            .key.equal {{ background: var(--primary); color: #FFFFFF; font-size: 24px; border-color: transparent; box-shadow: 0 6px 15px rgba(255, 107, 107, 0.3); }}
+            .key.op {{ color: var(--dyn-primary); font-size: 22px; background: var(--dyn-light); border-color: transparent; transition: all 0.4s ease; }}
+            .key.op:active {{ filter: brightness(0.95); }}
+            .key.equal {{ background: var(--dyn-primary); color: #FFFFFF; font-size: 24px; border-color: transparent; box-shadow: 0 6px 15px rgba(0,0,0,0.15); transition: all 0.4s ease; }}
             .key.clear {{ color: var(--text-sub); font-weight: 800; background: var(--bg-color); border-color: transparent; }}
             .rate-status {{ text-align: center; font-size: 12px; color: var(--text-sub); font-weight: 700; margin-top: 12px; }}
             .dot {{ display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }}
@@ -443,15 +477,10 @@ def fetch_trello_data():
             
             .image-modal {{ position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.95); z-index: 9999999; display: none; backdrop-filter: blur(8px); }}
             .image-modal.show {{ display: block; }}
-            
-            /* 💡 修改點 2: 右上角叉叉縮小、變半透明黑、更低調 */
             .close-btn {{ position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px; width: 32px; height: 32px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; color: white; display: flex; justify-content: center; align-items: center; font-size: 16px; z-index: 999; cursor: pointer; backdrop-filter: blur(4px); }}
-            
             .modal-content {{ width: 100%; height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; display: block; }}
             .modal-img {{ display: block; margin: auto; max-width: 100vw; width: 100%; height: auto; cursor: zoom-in; transition: all 0.3s ease; }}
             .modal-img.zoomed {{ max-width: none; width: 400vw; cursor: zoom-out; margin: 0; }}
-            
-            /* 💡 修改點 3: 底部提示字縮小 */
             .modal-hint {{ position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; pointer-events: none; z-index: 100; transition: opacity 0.3s; letter-spacing: 0.5px; }}
             .modal-img.zoomed ~ .modal-hint {{ opacity: 0; }}
         </style>
@@ -467,7 +496,7 @@ def fetch_trello_data():
                 </div>
             </div>
             
-            <div class="scroll-container">
+            <div class="scroll-container" id="main-scroll-container">
                 <div id="countdown-widget" class="countdown-wrapper" style="display: none;">
                     <div id="cd-mode" class="cd-mode">
                         <div class="cd-title">✈️ 距離出發還剩</div>
@@ -552,15 +581,30 @@ def fetch_trello_data():
         </div>
 
         <script>
+            const themeColors = {{
+                'CZ': {{ primary: '#E26D5A', gradStart: '#FF8A7A', gradEnd: '#E26D5A', light: '#FCEAE8' }},
+                'AT': {{ primary: '#4A6FA5', gradStart: '#6D92C8', gradEnd: '#4A6FA5', light: '#E8EEF5' }},
+                'HU': {{ primary: '#C29B38', gradStart: '#E6C56A', gradEnd: '#C29B38', light: '#FDF9ED' }},
+                'DE': {{ primary: '#5B8266', gradStart: '#7DB08C', gradEnd: '#5B8266', light: '#EBF2ED' }},
+                'DEFAULT': {{ primary: '#FF6B6B', gradStart: '#FF5A5F', gradEnd: '#FF7E67', light: '#FFF0F0' }}
+            }};
+
+            function applyTheme(countryCode) {{
+                const theme = themeColors[countryCode] || themeColors['DEFAULT'];
+                const root = document.documentElement;
+                root.style.setProperty('--dyn-primary', theme.primary);
+                root.style.setProperty('--dyn-grad-start', theme.gradStart);
+                root.style.setProperty('--dyn-grad-end', theme.gradEnd);
+                root.style.setProperty('--dyn-light', theme.light);
+            }}
+
             let isZoomed = false;
             
             function openModal(wrapperElement, e) {{
                 if (e) e.stopPropagation();
-                
                 const modal = document.getElementById('image-modal');
                 const img = document.getElementById('modal-img');
                 const hint = document.getElementById('modal-hint');
-                
                 const highResImg = wrapperElement.querySelector('.high-res-source');
                 
                 if (highResImg) {{
@@ -583,14 +627,8 @@ def fetch_trello_data():
                 const img = document.getElementById('modal-img');
                 const hint = document.getElementById('modal-hint');
                 isZoomed = !isZoomed;
-                
-                if (isZoomed) {{
-                    img.classList.add('zoomed');
-                    hint.style.display = 'none';
-                }} else {{
-                    img.classList.remove('zoomed');
-                    hint.style.display = 'block';
-                }}
+                if (isZoomed) {{ img.classList.add('zoomed'); hint.style.display = 'none'; }} 
+                else {{ img.classList.remove('zoomed'); hint.style.display = 'block'; }}
             }}
 
             function switchMainTab(tabId) {{
@@ -600,6 +638,13 @@ def fetch_trello_data():
                 document.getElementById(tabId).classList.add('active');
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
+                
+                if (tabId !== 'tab-itinerary') {{
+                    applyTheme('DEFAULT'); 
+                }} else {{
+                    const visibleDay = document.querySelector('.day-content[style*="display: block"]');
+                    if(visibleDay) applyTheme(visibleDay.getAttribute('data-country') || 'DEFAULT');
+                }}
                 
                 const widgetWrapper = document.getElementById('countdown-widget');
                 if (tabId === 'tab-itinerary') {{
@@ -613,8 +658,7 @@ def fetch_trello_data():
                 }} else {{
                     widgetWrapper.style.display = 'none';
                 }}
-                
-                document.querySelector('.scroll-container').scrollTo(0,0);
+                document.getElementById('main-scroll-container').scrollTo(0,0);
             }}
 
             function switchSubTab(targetId, element, contentClass) {{
@@ -626,6 +670,9 @@ def fetch_trello_data():
                 
                 const targetContent = document.getElementById(targetId);
                 targetContent.style.display = 'block';
+                
+                const countryCode = targetContent.getAttribute('data-country') || 'DEFAULT';
+                applyTheme(countryCode);
                 
                 let loc = targetContent.getAttribute('data-location');
                 if (loc) {{
@@ -646,9 +693,10 @@ def fetch_trello_data():
                     }}
                 }}
                 
-                const scrollContainer = document.querySelector('.scroll-container');
+                const scrollContainer = document.getElementById('main-scroll-container');
                 const subNavHeight = document.querySelector('.sub-nav-wrapper').offsetHeight;
                 let elementTop = targetContent.offsetTop;
+                // 💡 確保捲動目標不會被 80px 的毛玻璃蓋住
                 scrollContainer.scrollTo({{ top: elementTop - subNavHeight - 15, behavior: 'smooth' }});
             }}
 
@@ -683,13 +731,11 @@ def fetch_trello_data():
             
             function updateWeatherBadge(badgeElement, targetCoord, dateStr) {{
                 if (!targetCoord || !badgeElement) return;
-                
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&daily=weathercode,temperature_2m_max,precipitation_probability_max&timezone=auto&forecast_days=16`)
                     .then(res => res.json())
                     .then(data => {{
                         if(data && data.daily) {{
                             let targetIndex = 0; 
-                            
                             if (dateStr) {{
                                 let dateMatch = dateStr.match(/(\d{{1,2}})\/(\d{{1,2}})/); 
                                 if (dateMatch) {{
@@ -698,31 +744,19 @@ def fetch_trello_data():
                                     targetDate.setHours(0,0,0,0);
                                     let today = new Date();
                                     today.setHours(0,0,0,0);
-                                    
                                     let diffDays = Math.round((targetDate - today) / (1000 * 60 * 60 * 24));
-                                    if (diffDays < -150) {{ 
-                                        targetDate.setFullYear(tripYear + 1);
-                                        diffDays = Math.round((targetDate - today) / (1000 * 60 * 60 * 24));
-                                    }}
-                                    
-                                    if (diffDays >= 0 && diffDays < data.daily.time.length) {{
-                                        targetIndex = diffDays;
-                                    }} else if (diffDays < 0) {{
-                                        badgeElement.style.display = 'none'; 
-                                        return;
-                                    }}
+                                    if (diffDays < -150) {{ targetDate.setFullYear(tripYear + 1); diffDays = Math.round((targetDate - today) / (1000 * 60 * 60 * 24)); }}
+                                    if (diffDays >= 0 && diffDays < data.daily.time.length) {{ targetIndex = diffDays; }} 
+                                    else if (diffDays < 0) {{ badgeElement.style.display = 'none'; return; }}
                                 }}
                             }}
-                            
                             let temp = Math.round(data.daily.temperature_2m_max[targetIndex]);
                             let emoji = getWeatherEmoji(data.daily.weathercode[targetIndex]);
                             let maxRainProb = data.daily.precipitation_probability_max[targetIndex];
-                            
                             let rainText = maxRainProb > 0 ? ` ☔${{maxRainProb}}%` : '';
                             badgeElement.innerHTML = `${{emoji}} ${{temp}}°C${{rainText}}`;
                             if (maxRainProb >= 50) badgeElement.classList.add('rainy');
                             else badgeElement.classList.remove('rainy');
-                            
                             badgeElement.style.display = 'inline-flex';
                         }}
                     }}).catch(() => {{ badgeElement.style.display = 'none'; }});
@@ -846,6 +880,13 @@ def fetch_trello_data():
                 let dotClass = curStatus === '即時' ? 'dot' : 'dot offline';
                 document.getElementById('rate-hint').innerHTML = `<span class="${{dotClass}}"></span>${{curStatus}}匯率: 1 ${{cur}} ≈ ${{rates[cur].toFixed(2)}} TWD`;
             }}
+
+            window.addEventListener('DOMContentLoaded', (event) => {{
+                const firstActiveDay = document.querySelector('.day-content[style*="display: block"]');
+                if(firstActiveDay) {{
+                    applyTheme(firstActiveDay.getAttribute('data-country') || 'DEFAULT');
+                }}
+            }});
         </script>
     </body>
     </html>
