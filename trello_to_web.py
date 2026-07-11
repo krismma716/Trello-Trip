@@ -4,6 +4,7 @@ import requests
 import re
 import base64
 import io
+import concurrent.futures
 from PIL import Image
 
 # ==========================================
@@ -37,7 +38,7 @@ except KeyError:
 
 
 # ==========================================
-# 2. 核心程式：Trello 直取資料
+# 2. 核心程式：Trello 直取資料 (雙重畫質並行)
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_trello_data():
@@ -74,8 +75,9 @@ def fetch_trello_data():
         if in_list: html_lines.append('</ul>')
         return '<br>'.join(html_lines).replace('</ul><br>', '</ul>').replace('<br><ul', '<ul')
 
-    def get_base64_image(url):
-        if not url: return None
+    # 💡 產生低畫質與超高畫質的 Base64 字典
+    def get_base64_images(url, is_high_res=False):
+        if not url: return None, None
         try:
             headers = {"Authorization": f'OAuth oauth_consumer_key="{API_KEY}", oauth_token="{TOKEN}"'}
             res = requests.get(url, headers=headers, timeout=10)
@@ -85,15 +87,24 @@ def fetch_trello_data():
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
 
-                img.thumbnail((800, 800))
+                img_low = img.copy()
+                img_low.thumbnail((800, 800))
+                buf_low = io.BytesIO()
+                img_low.save(buf_low, format="JPEG", quality=80)
+                b64_low = "data:image/jpeg;base64," + base64.b64encode(buf_low.getvalue()).decode("utf-8")
 
-                buffered = io.BytesIO()
-                img.save(buffered, format="JPEG", quality=80)
-                img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
-                return f"data:image/jpeg;base64,{img_str}"
-        except Exception as e:
-            print(f"圖片載入失敗: {e}")
-        return None
+                b64_high = None
+                if is_high_res:
+                    img_high = img.copy()
+                    img_high.thumbnail((2000, 2000))
+                    buf_high = io.BytesIO()
+                    img_high.save(buf_high, format="JPEG", quality=85)
+                    b64_high = "data:image/jpeg;base64," + base64.b64encode(buf_high.getvalue()).decode("utf-8")
+
+                return b64_low, b64_high
+        except Exception:
+            pass
+        return None, None
 
     lists_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/lists",
                              params={'key': API_KEY, 'token': TOKEN})
@@ -106,12 +117,59 @@ def fetch_trello_data():
     lists = lists_res.json()
     all_cards = cards_res.json()
     cards_by_list = {}
+
+    img_urls_to_fetch = {}
+    card_img_map = {}
+
+    def get_best_preview(previews):
+        if not previews: return None
+        previews.sort(key=lambda x: x['width'])
+        valid = [p for p in previews if p['width'] >= 800]
+        return valid[0]['url'] if valid else previews[-1]['url']
+
     for c in all_cards:
         lid = c['idList']
         if lid not in cards_by_list: cards_by_list[lid] = []
         cards_by_list[lid].append(c)
 
+        img_url = None
+        cover_id = c.get('cover', {}).get('idAttachment')
+        attachments = c.get('attachments', [])
+
+        if cover_id:
+            for att in attachments:
+                if att['id'] == cover_id:
+                    optimal_url = get_best_preview(att.get('previews', []))
+                    img_url = optimal_url if optimal_url else att['url']
+                    break
+        if not img_url and attachments:
+            for att in attachments:
+                if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(('.png', '.jpg', '.jpeg')):
+                    optimal_url = get_best_preview(att.get('previews', []))
+                    img_url = optimal_url if optimal_url else att['url']
+                    break
+        if not img_url and c.get('cover', {}).get('sharedSourceUrl'):
+            img_url = c['cover']['sharedSourceUrl']
+
+        if img_url:
+            is_high_res = "行程總覽" in c.get("name", "")
+            if img_url in img_urls_to_fetch:
+                img_urls_to_fetch[img_url] = img_urls_to_fetch[img_url] or is_high_res
+            else:
+                img_urls_to_fetch[img_url] = is_high_res
+            card_img_map[c['id']] = img_url
+
+    base64_cache = {}
+    if img_urls_to_fetch:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            future_to_url = {executor.submit(get_base64_images, url, is_hr): url for url, is_hr in
+                             img_urls_to_fetch.items()}
+            for future in concurrent.futures.as_completed(future_to_url):
+                url = future_to_url[future]
+                base64_cache[url] = future.result()
+
     days_data, info_data = [], []
+
     for lst in lists:
         list_name = clean_text(lst['name'])
         cards = cards_by_list.get(lst['id'], [])
@@ -142,32 +200,6 @@ def fetch_trello_data():
             else:
                 card_desc = parse_markdown(raw_desc)
 
-            img_url = None
-            cover_id = card.get('cover', {}).get('idAttachment')
-            attachments = card.get('attachments', [])
-
-            def get_best_preview(previews):
-                if not previews: return None
-                previews.sort(key=lambda x: x['width'])
-                valid = [p for p in previews if p['width'] >= 800]
-                return valid[0]['url'] if valid else previews[-1]['url']
-
-            if cover_id:
-                for att in attachments:
-                    if att['id'] == cover_id:
-                        optimal_url = get_best_preview(att.get('previews', []))
-                        img_url = optimal_url if optimal_url else att['url']
-                        break
-            if not img_url and attachments:
-                for att in attachments:
-                    if 'image' in att.get('mimeType', '') or att.get('url', '').lower().endswith(
-                            ('.png', '.jpg', '.jpeg')):
-                        optimal_url = get_best_preview(att.get('previews', []))
-                        img_url = optimal_url if optimal_url else att['url']
-                        break
-            if not img_url and card.get('cover', {}).get('sharedSourceUrl'):
-                img_url = card['cover']['sharedSourceUrl']
-
             if is_checklist:
                 desc_html = f'<div class="check-desc">{card_desc}</div>' if card_desc else ''
                 cards_html += f"""
@@ -178,10 +210,21 @@ def fetch_trello_data():
                 """
             else:
                 img_html = ""
+                img_url = card_img_map.get(card['id'])
                 if img_url:
-                    base64_data = get_base64_image(img_url)
-                    if base64_data:
-                        img_html = f'<img src="{base64_data}" class="card-cover-img" loading="lazy">'
+                    b64_low, b64_high = base64_cache.get(img_url, (None, None))
+                    if b64_low:
+                        # 💡 [防彈修正] 直接把高清圖當作隱藏的 img 標籤塞在 HTML 裡，瀏覽器一定抓得到！
+                        if "行程總覽" in card_name and b64_high:
+                            img_html = f'''
+                            <div class="img-wrapper" onclick="openModal(this); event.stopPropagation();">
+                                <img src="{b64_low}" class="card-cover-img" loading="lazy">
+                                <img src="{b64_high}" class="high-res-source" style="display:none;">
+                                <div class="zoom-hint">🔍 點擊看高清大圖</div>
+                            </div>
+                            '''
+                        else:
+                            img_html = f'<img src="{b64_low}" class="card-cover-img" loading="lazy">'
 
                 has_desc = bool(card_desc)
                 chevron_html = '<div class="chevron"></div>' if has_desc else ''
@@ -214,7 +257,6 @@ def fetch_trello_data():
                 date_info = match.group(2).strip() if match.group(2) else ""
                 location = match.group(3).strip() if match.group(3) else "行程"
 
-                # 處理移動日徽章
                 is_moving_day = "移動日" in location
                 display_location = location.replace("(移動日)", "").replace("（移動日）", "").strip()
                 moving_badge_html = '<span class="moving-badge">🧳 換宿移動</span>' if is_moving_day else ''
@@ -272,7 +314,6 @@ def fetch_trello_data():
         </div>
         """
 
-    # 加入 r 以解決 SyntaxWarning 問題
     html_content = rf"""
     <!DOCTYPE html>
     <html lang="zh-TW">
@@ -333,22 +374,7 @@ def fetch_trello_data():
             .city-title {{ font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-main); }}
             .highlight-title {{ color: var(--primary); }}
 
-            /* 行李移動日標籤 */
-            .moving-badge {{
-                display: inline-flex;
-                align-items: center;
-                background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%);
-                color: #D8334A;
-                font-size: 15px;
-                font-weight: 800;
-                padding: 4px 10px;
-                border-radius: 12px;
-                vertical-align: middle;
-                margin-left: 8px;
-                box-shadow: 0 4px 10px rgba(255, 154, 158, 0.3);
-                letter-spacing: 0.5px;
-                transform: translateY(-4px); 
-            }}
+            .moving-badge {{ display: inline-flex; align-items: center; background: linear-gradient(135deg, #FF9A9E 0%, #FECFEF 100%); color: #D8334A; font-size: 15px; font-weight: 800; padding: 4px 10px; border-radius: 12px; vertical-align: middle; margin-left: 8px; box-shadow: 0 4px 10px rgba(255, 154, 158, 0.3); letter-spacing: 0.5px; transform: translateY(-4px); }}
 
             .split-card {{ background: linear-gradient(135deg, #1E2022 0%, #374151 100%); border-radius: 20px; padding: 20px; display: flex; align-items: center; color: white; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; }}
             .split-card:active {{ transform: scale(0.96); }}
@@ -360,7 +386,11 @@ def fetch_trello_data():
 
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
-            .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; border-bottom: 1px solid var(--border-color); background-color: #FFFFFF; }}
+
+            /* 圖片與放大鏡提示 CSS */
+            .img-wrapper {{ position: relative; cursor: zoom-in; border-bottom: 1px solid var(--border-color); }}
+            .zoom-hint {{ position: absolute; bottom: 12px; right: 12px; background: rgba(0,0,0,0.75); color: white; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 800; pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }}
+            .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; background-color: #FFFFFF; }}
 
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
             .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); flex: 1; }}
@@ -416,6 +446,16 @@ def fetch_trello_data():
             .rate-status {{ text-align: center; font-size: 12px; color: var(--text-sub); font-weight: 700; margin-top: 12px; }}
             .dot {{ display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }}
             .dot.offline {{ background: #F59E0B; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }}
+
+            /* 💡 [修正] 絕對不會失敗的傻瓜式排版 Modal */
+            .image-modal {{ position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.95); z-index: 9999999; display: none; backdrop-filter: blur(8px); }}
+            .image-modal.show {{ display: block; }}
+            .close-btn {{ position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; width: 44px; height: 44px; background: rgba(255,255,255,0.25); border-radius: 50%; color: white; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 999; cursor: pointer; backdrop-filter: blur(4px); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
+            .modal-content {{ width: 100%; height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; padding: 80px 0; text-align: center; box-sizing: border-box; }}
+            .modal-img {{ display: block; margin: 0 auto; max-width: 100%; height: auto; cursor: zoom-in; transition: width 0.3s ease; box-shadow: 0 0 30px rgba(0,0,0,0.5); }}
+            .modal-img.zoomed {{ width: 250%; max-width: 250%; cursor: zoom-out; margin: 0; /* 放大時靠左上角對齊，滾動才正常 */ }}
+            .modal-hint {{ position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.75); padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 800; pointer-events: none; z-index: 100; transition: opacity 0.3s; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
+            .modal-img.zoomed ~ .modal-hint {{ opacity: 0; }}
         </style>
     </head>
     <body>
@@ -505,7 +545,57 @@ def fetch_trello_data():
             </div>
         </div>
 
+        <!-- 全螢幕圖片放大鏡容器 -->
+        <div id="image-modal" class="image-modal" onclick="closeModal(event)">
+            <div class="close-btn" onclick="closeModal(event)">✕</div>
+            <div class="modal-content" id="modal-scroll-area">
+                <img id="modal-img" class="modal-img" src="" onclick="toggleZoom(event)">
+                <div class="modal-hint" id="modal-hint">點擊圖片放大 👆</div>
+            </div>
+        </div>
+
         <script>
+            // 💡 [終極修正] 直接抓取 DOM 裡面的隱藏高清圖，絕對不黑畫面！
+            let isZoomed = false;
+
+            function openModal(wrapperElement) {{
+                const modal = document.getElementById('image-modal');
+                const img = document.getElementById('modal-img');
+                const hint = document.getElementById('modal-hint');
+
+                // 尋找包裹內的隱藏高清圖片
+                const highResImg = wrapperElement.querySelector('.high-res-source');
+
+                if (highResImg) {{
+                    img.src = highResImg.src; // 把來源傳給放大鏡
+                    img.classList.remove('zoomed');
+                    hint.style.display = 'block';
+                    isZoomed = false;
+                    modal.classList.add('show');
+                }}
+            }}
+
+            function closeModal(e) {{
+                if (e.target.id === 'image-modal' || e.target.classList.contains('close-btn') || e.target.id === 'modal-scroll-area') {{
+                    document.getElementById('image-modal').classList.remove('show');
+                }}
+            }}
+
+            function toggleZoom(e) {{
+                e.stopPropagation();
+                const img = document.getElementById('modal-img');
+                const hint = document.getElementById('modal-hint');
+                isZoomed = !isZoomed;
+
+                if (isZoomed) {{
+                    img.classList.add('zoomed');
+                    hint.style.display = 'none';
+                }} else {{
+                    img.classList.remove('zoomed');
+                    hint.style.display = 'block';
+                }}
+            }}
+
             function switchMainTab(tabId) {{
                 document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
                 event.target.classList.add('active');
@@ -613,7 +703,7 @@ def fetch_trello_data():
                                     today.setHours(0,0,0,0);
 
                                     let diffDays = Math.round((targetDate - today) / (1000 * 60 * 60 * 24));
-                                    if (diffDays < -150) {{ // 跨年修正
+                                    if (diffDays < -150) {{ 
                                         targetDate.setFullYear(tripYear + 1);
                                         diffDays = Math.round((targetDate - today) / (1000 * 60 * 60 * 24));
                                     }}
