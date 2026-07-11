@@ -38,7 +38,7 @@ except KeyError:
 
 
 # ==========================================
-# 2. 核心程式：Trello 直取資料 (雙重畫質並行)
+# 2. 核心程式：Trello 直取資料
 # ==========================================
 @st.cache_data(ttl=600, show_spinner=False)
 def fetch_trello_data():
@@ -75,7 +75,7 @@ def fetch_trello_data():
         if in_list: html_lines.append('</ul>')
         return '<br>'.join(html_lines).replace('</ul><br>', '</ul>').replace('<br><ul', '<ul')
 
-    # 💡 產生低畫質與超高畫質的 Base64 字典
+    # 💡 [畫質客製化]
     def get_base64_images(url, is_high_res=False):
         if not url: return None, None
         try:
@@ -87,6 +87,7 @@ def fetch_trello_data():
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
 
+                # 低畫質版 (主頁面用)：維持 800px，保證流暢
                 img_low = img.copy()
                 img_low.thumbnail((800, 800))
                 buf_low = io.BytesIO()
@@ -96,9 +97,11 @@ def fetch_trello_data():
                 b64_high = None
                 if is_high_res:
                     img_high = img.copy()
-                    img_high.thumbnail((2000, 2000))
+                    # 🔥 給予 2500px 超高解析度，確保能看清楚行程表上的字！
+                    img_high.thumbnail((2500, 2500))
                     buf_high = io.BytesIO()
-                    img_high.save(buf_high, format="JPEG", quality=85)
+                    # 🔥 JPEG壓縮率微調為 75，畫質不減但能有效壓縮大小，防 iPhone 崩潰
+                    img_high.save(buf_high, format="JPEG", quality=75)
                     b64_high = "data:image/jpeg;base64," + base64.b64encode(buf_high.getvalue()).decode("utf-8")
 
                 return b64_low, b64_high
@@ -214,10 +217,9 @@ def fetch_trello_data():
                 if img_url:
                     b64_low, b64_high = base64_cache.get(img_url, (None, None))
                     if b64_low:
-                        # 💡 [防彈修正] 直接把高清圖當作隱藏的 img 標籤塞在 HTML 裡，瀏覽器一定抓得到！
                         if "行程總覽" in card_name and b64_high:
                             img_html = f'''
-                            <div class="img-wrapper" onclick="openModal(this); event.stopPropagation();">
+                            <div class="img-wrapper" onclick="openModal(this, event);">
                                 <img src="{b64_low}" class="card-cover-img" loading="lazy">
                                 <img src="{b64_high}" class="high-res-source" style="display:none;">
                                 <div class="zoom-hint">🔍 點擊看高清大圖</div>
@@ -387,8 +389,7 @@ def fetch_trello_data():
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
 
-            /* 圖片與放大鏡提示 CSS */
-            .img-wrapper {{ position: relative; cursor: zoom-in; border-bottom: 1px solid var(--border-color); }}
+            .img-wrapper {{ position: relative; cursor: pointer; border-bottom: 1px solid var(--border-color); -webkit-tap-highlight-color: transparent; }}
             .zoom-hint {{ position: absolute; bottom: 12px; right: 12px; background: rgba(0,0,0,0.75); color: white; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 800; pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }}
             .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; background-color: #FFFFFF; }}
 
@@ -447,14 +448,15 @@ def fetch_trello_data():
             .dot {{ display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }}
             .dot.offline {{ background: #F59E0B; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }}
 
-            /* 💡 [修正] 絕對不會失敗的傻瓜式排版 Modal */
+            /* 🔥 [放大鏡大改版] 放大倍率提高到 3.5倍，讓行程表極致清晰！ */
             .image-modal {{ position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.95); z-index: 9999999; display: none; backdrop-filter: blur(8px); }}
             .image-modal.show {{ display: block; }}
-            .close-btn {{ position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; width: 44px; height: 44px; background: rgba(255,255,255,0.25); border-radius: 50%; color: white; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 999; cursor: pointer; backdrop-filter: blur(4px); box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
-            .modal-content {{ width: 100%; height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; padding: 80px 0; text-align: center; box-sizing: border-box; }}
-            .modal-img {{ display: block; margin: 0 auto; max-width: 100%; height: auto; cursor: zoom-in; transition: width 0.3s ease; box-shadow: 0 0 30px rgba(0,0,0,0.5); }}
-            .modal-img.zoomed {{ width: 250%; max-width: 250%; cursor: zoom-out; margin: 0; /* 放大時靠左上角對齊，滾動才正常 */ }}
-            .modal-hint {{ position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.75); padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 800; pointer-events: none; z-index: 100; transition: opacity 0.3s; letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }}
+            .close-btn {{ position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; width: 44px; height: 44px; background: rgba(255,255,255,0.25); border-radius: 50%; color: white; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 999; cursor: pointer; backdrop-filter: blur(4px); }}
+            .modal-content {{ width: 100%; height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; display: block; }}
+            .modal-img {{ display: block; margin: auto; max-width: 100vw; width: 100%; height: auto; cursor: zoom-in; transition: all 0.3s ease; }}
+            /* 調整 max-width 讓圖片可以無限變寬 (超過手機寬度的3.5倍) */
+            .modal-img.zoomed {{ max-width: none; width: 350vw; cursor: zoom-out; margin: 0; }}
+            .modal-hint {{ position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.75); padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 800; pointer-events: none; z-index: 100; transition: opacity 0.3s; letter-spacing: 0.5px; }}
             .modal-img.zoomed ~ .modal-hint {{ opacity: 0; }}
         </style>
     </head>
@@ -545,7 +547,6 @@ def fetch_trello_data():
             </div>
         </div>
 
-        <!-- 全螢幕圖片放大鏡容器 -->
         <div id="image-modal" class="image-modal" onclick="closeModal(event)">
             <div class="close-btn" onclick="closeModal(event)">✕</div>
             <div class="modal-content" id="modal-scroll-area">
@@ -555,19 +556,19 @@ def fetch_trello_data():
         </div>
 
         <script>
-            // 💡 [終極修正] 直接抓取 DOM 裡面的隱藏高清圖，絕對不黑畫面！
             let isZoomed = false;
 
-            function openModal(wrapperElement) {{
+            function openModal(wrapperElement, e) {{
+                if (e) e.stopPropagation();
+
                 const modal = document.getElementById('image-modal');
                 const img = document.getElementById('modal-img');
                 const hint = document.getElementById('modal-hint');
 
-                // 尋找包裹內的隱藏高清圖片
                 const highResImg = wrapperElement.querySelector('.high-res-source');
 
                 if (highResImg) {{
-                    img.src = highResImg.src; // 把來源傳給放大鏡
+                    img.src = highResImg.src;
                     img.classList.remove('zoomed');
                     hint.style.display = 'block';
                     isZoomed = false;
@@ -582,7 +583,7 @@ def fetch_trello_data():
             }}
 
             function toggleZoom(e) {{
-                e.stopPropagation();
+                if (e) e.stopPropagation();
                 const img = document.getElementById('modal-img');
                 const hint = document.getElementById('modal-hint');
                 isZoomed = !isZoomed;
