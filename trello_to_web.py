@@ -10,9 +10,9 @@ from PIL import Image
 # ==========================================
 # 0. 介面設定
 # ==========================================
-st.set_page_config(page_title="奧捷德匈 專屬旅程", page_icon="✈️", layout="wide")
+st.set_page_config(page_title="2026漫步中歐 | 奧捷德匈16天", page_icon="✈️", layout="wide")
 
-LIGHTSPLIT_URL = "https://liff.line.me/1655320992-Y8GowEpw/g/f23GCF87vCLRRuMLKRa5zJ" 
+LIGHTSPLIT_URL = "https://liff.line.me/1655320992-Y8GowEpw/g/f23GCF87vCLRRuMLKRa5zJ"
 TRIP_START_DATE = "2026-09-11T23:45:00+08:00"
 
 st.markdown("""
@@ -36,6 +36,7 @@ except KeyError:
     st.error("❌ 找不到 API 憑證！請確認 Secrets 設定。")
     st.stop()
 
+
 # ==========================================
 # 2. 核心程式：Trello 直取資料
 # ==========================================
@@ -50,16 +51,18 @@ def fetch_trello_data():
     def parse_markdown(text):
         if not text: return ""
         text = clean_text(text)
-        
+
         map_pattern = r'(?<!=")(https?://(?:goo\.gl/maps|maps\.app\.goo\.gl|www\.google\.com/maps)[^\s<]+)(?!">)'
         text = re.sub(map_pattern, r'<a href="\1" target="_blank" class="map-btn">📍 導航至此 (Google Maps)</a>', text)
         text = re.sub(r'\*\*(.*?)\*\*', r'<span class="highlight-text">\1</span>', text)
         text = re.sub(r'\*(.*?)\*', r'<em>\1</em>', text)
-        text = re.sub(r'\[([^\]]+)\]\((https?://(?:goo\.gl|maps\.app\.goo\.gl|www\.google\.com/maps)[^\)]+)\)', r'<a href="\2" target="_blank" class="map-btn">📍 \1 (Google Maps)</a>', text)
-        text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'<a href="\2" target="_blank" class="action-btn">🔗 \1</a>', text)
+        text = re.sub(r'\[([^\]]+)\]\((https?://(?:goo\.gl|maps\.app\.goo\.gl|www\.google\.com/maps)[^\)]+)\)',
+                      r'<a href="\2" target="_blank" class="map-btn">📍 \1 (Google Maps)</a>', text)
+        text = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', r'<a href="\2" target="_blank" class="action-btn">🔗 \1</a>',
+                      text)
         normal_url_pattern = r'(?<!=")(https?://[^\s<]+)(?!">)'
         text = re.sub(normal_url_pattern, r'<a href="\1" target="_blank" class="action-btn">🔗 點擊連結</a>', text)
-        
+
         lines = text.split('\n')
         html_lines, in_list = [], False
         for line in lines:
@@ -77,18 +80,18 @@ def fetch_trello_data():
         try:
             headers = {"Authorization": f'OAuth oauth_consumer_key="{API_KEY}", oauth_token="{TOKEN}"'}
             res = requests.get(url, headers=headers, timeout=10)
-            
+
             if res.status_code == 200:
                 img = Image.open(io.BytesIO(res.content))
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
-                
+
                 img_low = img.copy()
                 img_low.thumbnail((800, 800))
                 buf_low = io.BytesIO()
                 img_low.save(buf_low, format="JPEG", quality=80)
                 b64_low = "data:image/jpeg;base64," + base64.b64encode(buf_low.getvalue()).decode("utf-8")
-                
+
                 b64_high = None
                 if is_high_res:
                     img_high = img.copy()
@@ -97,14 +100,16 @@ def fetch_trello_data():
                     buf_high = io.BytesIO()
                     img_high.save(buf_high, format="JPEG", quality=70, optimize=True)
                     b64_high = "data:image/jpeg;base64," + base64.b64encode(buf_high.getvalue()).decode("utf-8")
-                
+
                 return b64_low, b64_high
         except Exception:
             pass
         return None, None
 
-    lists_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/lists", params={'key': API_KEY, 'token': TOKEN})
-    cards_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/cards", params={'key': API_KEY, 'token': TOKEN, 'attachments': 'true'})
+    lists_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/lists",
+                             params={'key': API_KEY, 'token': TOKEN})
+    cards_res = requests.get(f"https://api.trello.com/1/boards/{BOARD_ID}/cards",
+                             params={'key': API_KEY, 'token': TOKEN, 'attachments': 'true'})
 
     if lists_res.status_code != 200 or cards_res.status_code != 200:
         return "<div style='text-align:center; padding:50px;'>❌ API 連線失敗。</div>"
@@ -112,10 +117,10 @@ def fetch_trello_data():
     lists = lists_res.json()
     all_cards = cards_res.json()
     cards_by_list = {}
-    
+
     img_urls_to_fetch = {}
     card_img_map = {}
-    
+
     def get_best_preview(previews):
         if not previews: return None
         previews.sort(key=lambda x: x['width'])
@@ -126,11 +131,11 @@ def fetch_trello_data():
         lid = c['idList']
         if lid not in cards_by_list: cards_by_list[lid] = []
         cards_by_list[lid].append(c)
-        
+
         img_url = None
         cover_id = c.get('cover', {}).get('idAttachment')
         attachments = c.get('attachments', [])
-        
+
         if cover_id:
             for att in attachments:
                 if att['id'] == cover_id:
@@ -143,9 +148,9 @@ def fetch_trello_data():
                     optimal_url = get_best_preview(att.get('previews', []))
                     img_url = optimal_url if optimal_url else att['url']
                     break
-        if not img_url and c.get('cover', {}).get('sharedSourceUrl'): 
+        if not img_url and c.get('cover', {}).get('sharedSourceUrl'):
             img_url = c['cover']['sharedSourceUrl']
-            
+
         if img_url:
             is_high_res = "行程總覽" in c.get("name", "")
             if img_url in img_urls_to_fetch:
@@ -157,10 +162,22 @@ def fetch_trello_data():
     base64_cache = {}
     if img_urls_to_fetch:
         with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-            future_to_url = {executor.submit(get_base64_images, url, is_hr): url for url, is_hr in img_urls_to_fetch.items()}
+            future_to_url = {executor.submit(get_base64_images, url, is_hr): url for url, is_hr in
+                             img_urls_to_fetch.items()}
             for future in concurrent.futures.as_completed(future_to_url):
                 url = future_to_url[future]
                 base64_cache[url] = future.result()
+
+    # 🍔 [新增] 餐點情境字典
+    meal_dict = {
+        "早餐": {"emoji": "🍳", "class": "meal-breakfast"},
+        "早午餐": {"emoji": "🥞", "class": "meal-brunch"},
+        "午餐": {"emoji": "🍝", "class": "meal-lunch"},
+        "下午茶": {"emoji": "☕", "class": "meal-aftertea"},
+        "晚餐": {"emoji": "🍷", "class": "meal-dinner"},
+        "點心": {"emoji": "🥨", "class": "meal-snack"},
+        "宵夜": {"emoji": "🌙", "class": "meal-midnight"}
+    }
 
     days_data, info_data = [], []
 
@@ -171,35 +188,47 @@ def fetch_trello_data():
         is_checklist = "清單" in list_name or "待辦" in list_name
 
         for card in cards:
+            card_id = card.get("id", "")
             card_name = clean_text(card.get("name", ""))
+
+            # 🍔 [新增] 偵測並擷取餐點括號
+            meal_badge_html = ""
+            meal_match = re.search(r'[(（](早餐|早午餐|午餐|下午茶|晚餐|點心|宵夜)[)）]', card_name)
+            if meal_match:
+                meal_type = meal_match.group(1)
+                # 剔除括號，讓標題乾淨
+                card_name = re.sub(r'[(（](早餐|早午餐|午餐|下午茶|晚餐|點心|宵夜)[)）]', '', card_name).strip()
+                m_info = meal_dict[meal_type]
+                meal_badge_html = f'<span class="meal-badge {m_info["class"]}">{m_info["emoji"]} {meal_type}</span>'
+
             raw_desc = card.get("desc", "").strip()
             link_buttons_html = ""
-            
+
             md_urls = [m for m in re.findall(r'\[([^\]]+)\]\((https?://[^\)]+)\)', raw_desc)]
             desc_without_md = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', '', raw_desc)
             plain_urls = re.findall(r'https?://[^\s<>"\'()]+', desc_without_md)
-            
+
             all_unique_urls = list(dict.fromkeys([u[1] for u in md_urls] + plain_urls))
-            
+
             if all_unique_urls:
                 for url in all_unique_urls:
                     if "goo.gl" in url or "maps.app" in url or "google.com/maps" in url:
                         link_buttons_html += f'<a href="{url}" target="_blank" class="icon-btn map-icon">📍</a>'
                     else:
                         link_buttons_html += f'<a href="{url}" target="_blank" class="icon-btn link-icon">🔗</a>'
-                
+
                 cleaned_desc = re.sub(r'\[([^\]]+)\]\((https?://[^\)]+)\)', '', raw_desc)
                 cleaned_desc = re.sub(r'(?<!=")(https?://[^\s<]+)(?!">)', '', cleaned_desc)
                 card_desc = parse_markdown(cleaned_desc)
             else:
                 card_desc = parse_markdown(raw_desc)
-                
+
             if is_checklist:
                 desc_html = f'<div class="check-desc">{card_desc}</div>' if card_desc else ''
                 cards_html += f"""
-                <div class="checklist-item" onclick="toggleCheck(this)">
+                <div class="checklist-item" data-checkid="{card_id}" onclick="toggleCheck(this)">
                     <div class="check-circle"></div>
-                    <div class="check-content"><div class="check-text">{card_name}</div>{desc_html}</div>
+                    <div class="check-content"><div class="check-text">{card_name} {meal_badge_html}</div>{desc_html}</div>
                 </div>
                 """
             else:
@@ -218,18 +247,19 @@ def fetch_trello_data():
                             '''
                         else:
                             img_html = f'<img src="{b64_low}" class="card-cover-img" loading="lazy">'
-                
+
                 has_desc = bool(card_desc)
                 chevron_html = '<div class="chevron"></div>' if has_desc else ''
                 onclick_html = 'onclick="toggleCard(this)"' if has_desc else ''
                 cursor_style = 'cursor: pointer;' if has_desc else 'cursor: default;'
-                
+
+                # 🍔 將 meal_badge_html 插入到卡片標題後面
                 cards_html += f"""
                 <div class="ios-card">
                     <div class="card-trigger" {onclick_html} style="{cursor_style}">
                         {img_html}
                         <div class="card-header">
-                            <h3 class="card-title">{card_name}</h3>
+                            <h3 class="card-title">{card_name}{meal_badge_html}</h3>
                             <div class="header-actions">
                                 {link_buttons_html}
                                 {chevron_html}
@@ -249,19 +279,23 @@ def fetch_trello_data():
                 short_name = match.group(1).strip()
                 date_info = match.group(2).strip() if match.group(2) else ""
                 location = match.group(3).strip() if match.group(3) else "行程"
-                
+
                 is_moving_day = "移動日" in location
                 display_location = location.replace("(移動日)", "").replace("（移動日）", "").strip()
-                
+
                 clean_location = re.sub(r'\(.*?\)', '', location).strip()
                 capsule_subtitle = clean_location[:4] if clean_location else date_info.split(' ')[-1]
-                
+
                 country_code = "DEFAULT"
-                if any(c in display_location for c in ["布拉格", "庫倫洛夫", "CK"]): country_code = "CZ"
-                elif any(c in display_location for c in ["維也納", "薩爾斯堡", "哈修塔特"]): country_code = "AT"
-                elif any(c in display_location for c in ["布達佩斯"]): country_code = "HU"
-                elif any(c in display_location for c in ["國王湖", "慕尼黑"]): country_code = "DE"
-                
+                if any(c in display_location for c in ["布拉格", "庫倫洛夫", "CK"]):
+                    country_code = "CZ"
+                elif any(c in display_location for c in ["維也納", "薩爾斯堡", "哈修塔特"]):
+                    country_code = "AT"
+                elif any(c in display_location for c in ["布達佩斯"]):
+                    country_code = "HU"
+                elif any(c in display_location for c in ["國王湖", "慕尼黑"]):
+                    country_code = "DE"
+
             else:
                 short_name, date_info, location = list_name.split(' ')[0], "", list_name
                 capsule_subtitle = "行程"
@@ -269,11 +303,11 @@ def fetch_trello_data():
                 country_code = "DEFAULT"
 
             days_data.append({
-                'id': list_id, 
-                'short_name': short_name, 
-                'subtitle': capsule_subtitle, 
-                'date_info': date_info, 
-                'location': display_location, 
+                'id': list_id,
+                'short_name': short_name,
+                'subtitle': capsule_subtitle,
+                'date_info': date_info,
+                'location': display_location,
                 'country': country_code,
                 'html': cards_html
             })
@@ -292,7 +326,8 @@ def fetch_trello_data():
             <span class="pill-subtitle">{day["subtitle"]}</span>
         </div>
         """
-        moving_badge_html = '<span class="moving-badge">🧳 換宿移動</span>' if "移動" in day['location'] or "搭飛機" in day['location'] else ''
+        moving_badge_html = '<span class="moving-badge">🧳 換宿移動</span>' if "移動" in day['location'] or "搭飛機" in \
+                                                                              day['location'] else ''
         day_contents_html += f"""
         <div id="{day['id']}" class="day-content sub-content" style="display: {display};" data-location="{day['location']}" data-date="{day['date_info']}" data-country="{day['country']}">
             <div class="city-header">
@@ -326,7 +361,7 @@ def fetch_trello_data():
             * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Nunito', 'Noto Sans TC', sans-serif; -webkit-tap-highlight-color: transparent; }}
             html, body {{ height: 100dvh; overflow: hidden; background-color: #F8F9FA; color: #1E2022; user-select: none; }}
             .app {{ display: flex; flex-direction: column; height: 100dvh; width: 100%; max-width: 500px; margin: 0 auto; background-color: #F8F9FA; position: relative; }}
-            
+
             :root {{ 
                 --dyn-primary: #FF6B6B; 
                 --dyn-grad-start: #FF5A5F; 
@@ -339,51 +374,18 @@ def fetch_trello_data():
                 --nav-height: 80px; 
             }}
 
-            /* 💡 徹底移除浮水印，專注在乾淨的毛玻璃特效 */
-            .nav-bar {{ 
-                position: absolute; 
-                top: 0; left: 0; right: 0; 
-                height: var(--nav-height);
-                background: rgba(248, 249, 250, 0.7); /* 降低白底透明度，讓底下圖片透上來 */
-                backdrop-filter: saturate(180%) blur(20px); 
-                -webkit-backdrop-filter: saturate(180%) blur(20px); 
-                border-bottom: 1px solid rgba(0,0,0,0.05); 
-                padding: 0 20px; 
-                display: flex; 
-                justify-content: space-between; 
-                align-items: center; 
-                z-index: 1000; 
-            }}
-            
-            .nav-title {{ font-size: 22px; font-weight: 900; background: linear-gradient(135deg, var(--dyn-grad-start) 0%, var(--dyn-grad-end) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.5px; transition: all 0.4s ease; margin: 0; }}
-            
+            .nav-bar {{ position: absolute; top: 0; left: 0; right: 0; height: var(--nav-height); background: rgba(248, 249, 250, 0.7); backdrop-filter: saturate(180%) blur(20px); -webkit-backdrop-filter: saturate(180%) blur(20px); border-bottom: 1px solid rgba(0,0,0,0.05); padding: 0 20px; display: flex; justify-content: space-between; align-items: center; z-index: 1000; }}
+
+            .nav-title-group {{ display: flex; flex-direction: column; justify-content: center; }}
+            .nav-title {{ font-size: 22px; font-weight: 900; background: linear-gradient(135deg, var(--dyn-grad-start) 0%, var(--dyn-grad-end) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; letter-spacing: 0.5px; transition: all 0.4s ease; margin: 0; line-height: 1.2; }}
+            .nav-subtitle {{ font-size: 11px; font-weight: 800; color: #8E8E93; letter-spacing: 1px; margin-top: 1px; }}
+
             .tab-switcher {{ display: flex; background: #E5E7EB; border-radius: 12px; padding: 4px; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }}
             .tab-btn {{ padding: 8px 14px; font-size: 13px; font-weight: 700; color: #6B7280; border-radius: 10px; cursor: pointer; transition: 0.3s; }}
             .tab-btn.active {{ background: #FFFFFF; color: var(--dyn-primary); box-shadow: 0 4px 10px rgba(0,0,0,0.04); transform: scale(1.02); transition: color 0.4s ease, transform 0.3s; }}
-            
-            /* 💡 修正滾動層，確保內容會被捲動到導覽列 "底下" 產生透視效果 */
+
             .scroll-container {{ flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; position: absolute; top: 0; bottom: 0; left: 0; right: 0; display: flex; flex-direction: column; padding-top: var(--nav-height); padding-bottom: 40px; z-index: 1; }}
-            
-            /* 💡 日期膠囊區塊：拿掉死白的背景，改為跟隨背景色或微毛玻璃 */
-            .sub-nav-wrapper {{ position: sticky; top: 0; background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(10px); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
-            .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
-            .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.3s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
-            .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
-            .pill-subtitle {{ font-size: 10px; font-weight: 700; color: var(--text-sub); margin-top: 2px; white-space: nowrap; transition: 0.2s; }}
-            
-            .sub-pill.active {{ background: var(--dyn-primary); border-color: var(--dyn-primary); box-shadow: 0 8px 20px rgba(0,0,0,0.15); transform: translateY(-2px); }}
-            .sub-pill.active .pill-title, .sub-pill.active .pill-subtitle {{ color: #FFFFFF; }}
-            
-            .info-pill {{ flex-direction: row; padding: 10px 20px; white-space: nowrap; width: auto; min-width: 0; }}
-            .info-pill .pill-subtitle {{ display: none; }}
-            .info-pill .pill-title {{ font-size: 14px; font-weight: 700; display: block; }}
-            
-            .content-area {{ padding: 24px 20px; flex: 1; }}
-            .main-tab {{ display: none; }}
-            .main-tab.active {{ display: block; animation: fadeUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
-            @keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
-            @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
-            
+
             .countdown-wrapper {{ margin: 15px 20px 5px; border-radius: 20px; padding: 20px; background: #FFFFFF; border: 1px solid var(--border-color); box-shadow: 0 10px 25px rgba(0,0,0,0.02); display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 110px; transition: all 0.5s ease; }}
             .cd-mode {{ display: flex; flex-direction: column; align-items: center; width: 100%; }}
             .cd-title {{ font-size: 13px; font-weight: 700; color: var(--text-sub); margin-bottom: 12px; letter-spacing: 1px; display: flex; align-items: center; gap: 6px; }}
@@ -395,7 +397,26 @@ def fetch_trello_data():
             .journey-greeting {{ font-size: 18px; font-weight: 800; color: var(--dyn-primary); margin-bottom: 6px; transition: color 0.4s ease; }}
             .journey-sub {{ font-size: 13px; font-weight: 600; color: var(--text-sub); display: flex; align-items: center; gap: 6px; }}
             .journey-weather-badge {{ background: var(--dyn-light); color: var(--dyn-primary); padding: 2px 8px; border-radius: 8px; font-size: 11px; font-weight: 800; display: none; transition: all 0.4s ease; }}
-            
+
+            .sub-nav-wrapper {{ position: sticky; top: 0; background: rgba(248, 249, 250, 0.95); backdrop-filter: blur(10px); z-index: 90; padding: 12px 20px 16px; border-bottom: 1px solid rgba(0,0,0,0.02); }}
+            .pill-scroll {{ display: flex; overflow-x: auto; gap: 10px; scrollbar-width: none; padding-bottom: 4px; align-items: center; }}
+            .sub-pill {{ display: flex; flex-direction: column; justify-content: center; align-items: center; padding: 10px 20px; background: #FFFFFF; border-radius: 16px; min-width: 70px; cursor: pointer; transition: 0.3s ease; border: 1px solid var(--border-color); box-shadow: 0 4px 10px rgba(0,0,0,0.01); }}
+            .pill-title {{ font-size: 16px; font-weight: 800; color: var(--text-main); transition: 0.2s; }}
+            .pill-subtitle {{ font-size: 10px; font-weight: 700; color: var(--text-sub); margin-top: 2px; white-space: nowrap; transition: 0.2s; }}
+
+            .sub-pill.active {{ background: var(--dyn-primary); border-color: var(--dyn-primary); box-shadow: 0 8px 20px rgba(0,0,0,0.15); transform: translateY(-2px); }}
+            .sub-pill.active .pill-title, .sub-pill.active .pill-subtitle {{ color: #FFFFFF; }}
+
+            .info-pill {{ flex-direction: row; padding: 10px 20px; white-space: nowrap; width: auto; min-width: 0; }}
+            .info-pill .pill-subtitle {{ display: none; }}
+            .info-pill .pill-title {{ font-size: 14px; font-weight: 700; display: block; }}
+
+            .content-area {{ padding: 24px 20px; flex: 1; }}
+            .main-tab {{ display: none; }}
+            .main-tab.active {{ display: block; animation: fadeUp 0.4s cubic-bezier(0.4, 0, 0.2, 1); }}
+            @keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(15px); }} to {{ opacity: 1; transform: translateY(0); }} }}
+            @keyframes fadeIn {{ from {{ opacity: 0; }} to {{ opacity: 1; }} }}
+
             .city-header {{ margin-bottom: 24px; padding-left: 4px; margin-top: 5px; }}
             .date-row {{ display: flex; align-items: center; margin-bottom: 6px; flex-wrap: wrap; gap: 8px; }}
             .city-date {{ font-size: 13px; font-weight: 800; color: var(--dyn-primary); letter-spacing: 1px; transition: color 0.4s ease; }}
@@ -403,7 +424,7 @@ def fetch_trello_data():
             .weather-badge.rainy {{ background: #E0E7FF !important; color: #3B82F6 !important; }} 
             .city-title {{ font-size: 28px; font-weight: 900; letter-spacing: -0.5px; line-height: 1.2; color: var(--text-main); }}
             .highlight-title {{ color: var(--dyn-primary); transition: color 0.4s ease; }}
-            
+
             .moving-badge {{ display: inline-flex; align-items: center; background: var(--dyn-light); color: var(--dyn-primary); border: 1px solid var(--dyn-primary); font-size: 14px; font-weight: 800; padding: 2px 10px; border-radius: 10px; vertical-align: middle; margin-left: 8px; letter-spacing: 0.5px; transform: translateY(-4px); transition: all 0.4s ease; box-shadow: 0 4px 10px rgba(0,0,0,0.05); }}
 
             .split-card {{ background: linear-gradient(135deg, #1E2022 0%, #374151 100%); border-radius: 20px; padding: 20px; display: flex; align-items: center; color: white; margin-bottom: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); cursor: pointer; transition: 0.2s; }}
@@ -416,36 +437,47 @@ def fetch_trello_data():
 
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
-            
+
             .img-wrapper {{ position: relative; cursor: pointer; border-bottom: 1px solid var(--border-color); -webkit-tap-highlight-color: transparent; }}
             .zoom-hint {{ position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.55); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }}
             .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; background-color: #FFFFFF; }}
-            
-            .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
-            .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); flex: 1; }}
+
+            .card-header {{ padding: 18px 20px; display: flex; justify-content: space-between; align-items: center; }}
+            .card-title {{ font-size: 17px; font-weight: 800; line-height: 1.4; margin-right: 12px; color: var(--text-main); flex: 1; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }}
+
+            /* 🍔 餐點標籤專屬 CSS */
+            .meal-badge {{ display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 8px; font-size: 12px; font-weight: 800; letter-spacing: 0.5px; white-space: nowrap; transform: translateY(-1px); box-shadow: 0 2px 6px rgba(0,0,0,0.03); }}
+            .meal-breakfast {{ background: #FFF4E5; color: #E67E22; border: 1px solid #FFE0B2; }}
+            .meal-brunch {{ background: #FDF2E9; color: #D35400; border: 1px solid #FAD7A1; }}
+            .meal-lunch {{ background: #FDECEE; color: #E74C3C; border: 1px solid #FADBD8; }}
+            .meal-aftertea {{ background: #F4ECE8; color: #6E2C00; border: 1px solid #E5E0D8; }}
+            .meal-dinner {{ background: #EBF5FB; color: #2980B9; border: 1px solid #D6EAF8; }}
+            .meal-snack {{ background: #EAFAF1; color: #16A085; border: 1px solid #D1F2EB; }}
+            .meal-midnight {{ background: #34495E; color: #F1C40F; border: 1px solid #2C3E50; }}
+
             .header-actions {{ display: flex; align-items: center; gap: 8px; flex-shrink: 0; }}
             .icon-btn {{ width: 32px; height: 32px; border-radius: 10px; display: flex; justify-content: center; align-items: center; text-decoration: none; font-size: 16px; transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1); }}
             .map-icon {{ background: #E8F0FE; color: #1A73E8; }} 
             .link-icon {{ background: #F2F2F7; color: #8E8E93; }} 
             .icon-btn:active {{ transform: scale(0.9); filter: brightness(0.95); }}
-            
+
             .chevron {{ width: 32px; height: 32px; background: var(--dyn-light); border-radius: 10px; display: flex; justify-content: center; align-items: center; transition: all 0.4s ease; flex-shrink: 0; }}
             .chevron::after {{ content: ''; width: 8px; height: 8px; border-right: 2.5px solid var(--dyn-primary); border-bottom: 2.5px solid var(--dyn-primary); transform: translateY(-2px) rotate(45deg); transition: all 0.4s ease; }}
             .open .chevron {{ transform: rotate(180deg); background: var(--dyn-primary); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }}
             .open .chevron::after {{ border-color: #FFFFFF; transform: translateY(2px) rotate(45deg); }}
-            
+
             .card-body {{ display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.4s ease; }}
             .card-body.open {{ grid-template-rows: 1fr; border-top: 1px solid var(--border-color); }}
             .card-content {{ overflow: hidden; }}
             .card-desc {{ padding: 0 20px 24px; font-size: 15px; color: var(--text-sub); line-height: 1.7; word-wrap: break-word; margin-top: 16px; user-select: text; }}
-            
+
             .checklist-group {{ background: #FFFFFF; border-radius: 20px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.03); border: 1px solid var(--border-color); }}
             .checklist-item {{ display: flex; align-items: flex-start; padding: 16px 20px; border-bottom: 1px solid var(--border-color); cursor: pointer; transition: 0.2s; background: #FFFFFF; }}
             .checklist-item:active {{ background: var(--bg-color); }}
             .checklist-item:last-child {{ border-bottom: none; }}
             .check-circle {{ width: 22px; height: 22px; border-radius: 50%; border: 2px solid #D1D5DB; margin-right: 14px; flex-shrink: 0; transition: 0.2s; position: relative; margin-top: 2px; }}
             .check-content {{ flex: 1; }}
-            .check-text {{ font-size: 15px; font-weight: 700; color: var(--text-main); line-height: 1.4; transition: 0.2s; }}
+            .check-text {{ font-size: 15px; font-weight: 700; color: var(--text-main); line-height: 1.4; transition: 0.2s; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }}
             .check-desc {{ font-size: 13px; color: var(--text-sub); margin-top: 4px; font-weight: 600; line-height: 1.5; }}
             .checklist-item.checked .check-circle {{ background: #10B981; border-color: #10B981; transform: scale(1.05); }}
             .checklist-item.checked .check-circle::after {{ content: '✓'; color: white; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 12px; font-weight: 900; }}
@@ -458,12 +490,25 @@ def fetch_trello_data():
             .empty-state {{ text-align: center; color: #B0B3C6; padding: 40px 0; font-size: 15px; font-weight: 500; }}
 
             .calc-wrapper {{ background: #FFFFFF; border-radius: 24px; padding: 20px; box-shadow: 0 8px 30px rgba(0,0,0,0.04); border: 1px solid var(--border-color); }}
-            .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 20px; }}
-            .currency-badge {{ position: absolute; top: 16px; left: 16px; background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
-            .calc-formula {{ font-size: 15px; color: var(--text-sub); min-height: 22px; font-weight: 700; margin-top: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
-            .calc-foreign {{ font-size: 40px; font-weight: 900; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -1px; margin-bottom: 4px; }}
+            .calc-screen {{ background: var(--bg-color); border-radius: 16px; padding: 20px; text-align: right; display: flex; flex-direction: column; justify-content: flex-end; position: relative; border: 1px solid var(--border-color); margin-bottom: 12px; }}
+
+            .calc-top-bar {{ display: flex; justify-content: space-between; align-items: center; position: absolute; top: 16px; left: 16px; right: 16px; }}
+            .currency-badge {{ background: #FFFFFF; border: 1px solid var(--border-color); padding: 6px 12px; border-radius: 10px; font-size: 14px; font-weight: 800; color: var(--text-main); box-shadow: 0 2px 8px rgba(0,0,0,0.02); outline: none; -webkit-appearance: none; cursor: pointer; }}
+            .mode-toggle {{ background: var(--dyn-light); color: var(--dyn-primary); font-size: 12px; font-weight: 800; padding: 6px 12px; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.05); user-select: none; display: flex; align-items: center; gap: 4px; border: 1px solid var(--dyn-primary); }}
+            .mode-toggle:active {{ transform: scale(0.95); background: var(--dyn-primary); color: #fff; }}
+
+            .calc-formula {{ font-size: 15px; color: var(--text-sub); min-height: 22px; font-weight: 700; margin-top: 24px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }}
+
+            .input-row {{ display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; margin-bottom: 4px; }}
+            .cur-symbol {{ font-size: 20px; font-weight: 800; color: var(--text-sub); padding-bottom: 4px; }}
+            .calc-foreign {{ font-size: 40px; font-weight: 900; color: var(--text-main); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -1px; }}
+
             .calc-twd {{ font-size: 16px; font-weight: 800; color: #10B981; background: rgba(16, 185, 129, 0.1); display: inline-block; padding: 4px 10px; border-radius: 8px; align-self: flex-end; }}
-            
+
+            .quick-add-row {{ display: flex; gap: 8px; margin-bottom: 16px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }}
+            .quick-add-btn {{ flex: 1; min-width: 60px; background: var(--dyn-light); color: var(--dyn-primary); font-size: 14px; font-weight: 800; padding: 8px 0; border-radius: 12px; text-align: center; cursor: pointer; transition: all 0.3s ease; box-shadow: 0 2px 6px rgba(0,0,0,0.02); user-select: none; border: 1px solid transparent; }}
+            .quick-add-btn:active {{ background: var(--dyn-primary); color: #FFFFFF; transform: scale(0.95); }}
+
             .calc-keypad {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }}
             .key {{ background: #FFFFFF; color: var(--text-main); font-size: 20px; font-weight: 700; border-radius: 14px; aspect-ratio: 1.2/1; border: 1px solid var(--border-color); text-align: center; transition: 0.1s; cursor: pointer; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 6px rgba(0,0,0,0.02); touch-action: manipulation; }}
             .key:active {{ transform: scale(0.92); background: var(--bg-color); }}
@@ -474,7 +519,7 @@ def fetch_trello_data():
             .rate-status {{ text-align: center; font-size: 12px; color: var(--text-sub); font-weight: 700; margin-top: 12px; }}
             .dot {{ display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }}
             .dot.offline {{ background: #F59E0B; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }}
-            
+
             .image-modal {{ position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.95); z-index: 9999999; display: none; backdrop-filter: blur(8px); }}
             .image-modal.show {{ display: block; }}
             .close-btn {{ position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px; width: 32px; height: 32px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; color: white; display: flex; justify-content: center; align-items: center; font-size: 16px; z-index: 999; cursor: pointer; backdrop-filter: blur(4px); }}
@@ -488,14 +533,18 @@ def fetch_trello_data():
     <body>
         <div class="app">
             <div class="nav-bar">
-                <h1 class="nav-title">奧捷德匈</h1>
+                <div class="nav-title-group">
+                    <h1 class="nav-title">2026 漫步中歐</h1>
+                    <div class="nav-subtitle">奧捷德匈 16 天 14 夜</div>
+                </div>
+
                 <div class="tab-switcher">
                     <div class="tab-btn active" onclick="switchMainTab('tab-itinerary')">行程</div>
                     <div class="tab-btn" onclick="switchMainTab('tab-info')">資訊</div>
                     <div class="tab-btn" onclick="switchMainTab('tab-tools')">工具</div>
                 </div>
             </div>
-            
+
             <div class="scroll-container" id="main-scroll-container">
                 <div id="countdown-widget" class="countdown-wrapper" style="display: none;">
                     <div id="cd-mode" class="cd-mode">
@@ -515,14 +564,14 @@ def fetch_trello_data():
                         </div>
                     </div>
                 </div>
-                
+
                 <div id="nav-itinerary" class="sub-nav-wrapper"><div class="pill-scroll">{day_pills_html}</div></div>
                 <div id="nav-info" class="sub-nav-wrapper" style="display: none;"><div class="pill-scroll">{info_pills_html}</div></div>
-                
+
                 <div class="content-area">
                     <div id="tab-itinerary" class="main-tab active">{day_contents_html}</div>
                     <div id="tab-info" class="main-tab">{info_contents_html}</div>
-                    
+
                     <div id="tab-tools" class="main-tab">
                         <div class="split-card" onclick="window.open('{LIGHTSPLIT_URL}', '_blank')">
                             <div class="split-icon">💸</div>
@@ -536,13 +585,27 @@ def fetch_trello_data():
                         <div class="city-header"><span class="city-date">Calculator</span><h2 class="city-title">外幣匯率換算</h2></div>
                         <div class="calc-wrapper">
                             <div class="calc-screen">
-                                <select id="cur-select" class="currency-badge" onchange="updateCalc()">
-                                    <option value="EUR">🇪🇺 EUR</option><option value="CZK">🇨🇿 CZK</option><option value="HUF">🇭🇺 HUF</option>
-                                </select>
+                                <div class="calc-top-bar">
+                                    <select id="cur-select" class="currency-badge" onchange="updateCalc()">
+                                        <option value="EUR">🇪🇺 EUR</option><option value="CZK">🇨🇿 CZK</option><option value="HUF">🇭🇺 HUF</option>
+                                    </select>
+                                    <div class="mode-toggle" onclick="toggleCalcMode()">🔄 換算台幣</div>
+                                </div>
                                 <div id="calc-formula" class="calc-formula"></div>
-                                <div id="calc-foreign" class="calc-foreign">0</div>
+                                <div class="input-row">
+                                    <span id="input-symbol" class="cur-symbol">€</span>
+                                    <span id="calc-foreign" class="calc-foreign">0</span>
+                                </div>
                                 <div id="calc-twd" class="calc-twd">≈ NT$ 0</div>
                             </div>
+
+                            <div class="quick-add-row">
+                                <div class="quick-add-btn" onclick="pressQuickAdd(5)">+5</div>
+                                <div class="quick-add-btn" onclick="pressQuickAdd(10)">+10</div>
+                                <div class="quick-add-btn" onclick="pressQuickAdd(50)">+50</div>
+                                <div class="quick-add-btn" onclick="pressQuickAdd(100)">+100</div>
+                            </div>
+
                             <div class="calc-keypad" id="keypad">
                                 <button class="key clear" onclick="pressKey('C')">C</button>
                                 <button class="key op" onclick="pressKey('(')">(</button>
@@ -571,7 +634,7 @@ def fetch_trello_data():
                 </div>
             </div>
         </div>
-        
+
         <div id="image-modal" class="image-modal" onclick="closeModal(event)">
             <div class="close-btn" onclick="closeModal(event)">✕</div>
             <div class="modal-content" id="modal-scroll-area">
@@ -599,14 +662,14 @@ def fetch_trello_data():
             }}
 
             let isZoomed = false;
-            
+
             function openModal(wrapperElement, e) {{
                 if (e) e.stopPropagation();
                 const modal = document.getElementById('image-modal');
                 const img = document.getElementById('modal-img');
                 const hint = document.getElementById('modal-hint');
                 const highResImg = wrapperElement.querySelector('.high-res-source');
-                
+
                 if (highResImg) {{
                     img.src = highResImg.src;
                     img.classList.remove('zoomed');
@@ -615,13 +678,13 @@ def fetch_trello_data():
                     modal.classList.add('show');
                 }}
             }}
-            
+
             function closeModal(e) {{
                 if (e.target.id === 'image-modal' || e.target.classList.contains('close-btn') || e.target.id === 'modal-scroll-area') {{
                     document.getElementById('image-modal').classList.remove('show');
                 }}
             }}
-            
+
             function toggleZoom(e) {{
                 if (e) e.stopPropagation();
                 const img = document.getElementById('modal-img');
@@ -638,26 +701,21 @@ def fetch_trello_data():
                 document.getElementById(tabId).classList.add('active');
                 document.getElementById('nav-itinerary').style.display = tabId === 'tab-itinerary' ? 'block' : 'none';
                 document.getElementById('nav-info').style.display = tabId === 'tab-info' ? 'block' : 'none';
-                
+
                 if (tabId !== 'tab-itinerary') {{
                     applyTheme('DEFAULT'); 
                 }} else {{
                     const visibleDay = document.querySelector('.day-content[style*="display: block"]');
                     if(visibleDay) applyTheme(visibleDay.getAttribute('data-country') || 'DEFAULT');
                 }}
-                
+
                 const widgetWrapper = document.getElementById('countdown-widget');
                 if (tabId === 'tab-itinerary') {{
                     const activeDayPill = document.querySelector('#nav-itinerary .sub-pill.active');
                     const allDayPills = Array.from(document.querySelectorAll('#nav-itinerary .sub-pill'));
-                    if (activeDayPill && allDayPills.indexOf(activeDayPill) === 0) {{
-                        widgetWrapper.style.display = 'flex';
-                    }} else {{
-                        widgetWrapper.style.display = 'none';
-                    }}
-                }} else {{
-                    widgetWrapper.style.display = 'none';
-                }}
+                    if (activeDayPill && allDayPills.indexOf(activeDayPill) === 0) {{ widgetWrapper.style.display = 'flex'; }} 
+                    else {{ widgetWrapper.style.display = 'none'; }}
+                }} else {{ widgetWrapper.style.display = 'none'; }}
                 document.getElementById('main-scroll-container').scrollTo(0,0);
             }}
 
@@ -667,13 +725,13 @@ def fetch_trello_data():
                 element.classList.add('active');
                 const mainTab = document.getElementById(contentClass.includes('day') ? 'tab-itinerary' : 'tab-info');
                 mainTab.querySelectorAll('.' + contentClass).forEach(c => c.style.display = 'none');
-                
+
                 const targetContent = document.getElementById(targetId);
                 targetContent.style.display = 'block';
-                
+
                 const countryCode = targetContent.getAttribute('data-country') || 'DEFAULT';
                 applyTheme(countryCode);
-                
+
                 let loc = targetContent.getAttribute('data-location');
                 if (loc) {{
                     for (let zh of Object.keys(coords)) {{
@@ -681,22 +739,18 @@ def fetch_trello_data():
                     }}
                 }}
                 updateJourneyWeather(currentActiveCity);
-                
+
                 const widgetWrapper = document.getElementById('countdown-widget');
                 if (contentClass.includes('day')) {{
                     const allDayPills = Array.from(parentNav.querySelectorAll('.sub-pill'));
                     const isFirstDay = allDayPills.indexOf(element) === 0;
-                    if (isFirstDay) {{
-                        widgetWrapper.style.display = 'flex';
-                    }} else {{
-                        widgetWrapper.style.display = 'none';
-                    }}
+                    if (isFirstDay) {{ widgetWrapper.style.display = 'flex'; }} 
+                    else {{ widgetWrapper.style.display = 'none'; }}
                 }}
-                
+
                 const scrollContainer = document.getElementById('main-scroll-container');
                 const subNavHeight = document.querySelector('.sub-nav-wrapper').offsetHeight;
                 let elementTop = targetContent.offsetTop;
-                // 💡 確保捲動目標不會被 80px 的毛玻璃蓋住
                 scrollContainer.scrollTo({{ top: elementTop - subNavHeight - 15, behavior: 'smooth' }});
             }}
 
@@ -714,7 +768,26 @@ def fetch_trello_data():
                 }}
             }}
 
-            function toggleCheck(itemElement) {{ itemElement.classList.toggle('checked'); }}
+            function loadChecklistState() {{
+                const items = document.querySelectorAll('.checklist-item');
+                items.forEach(item => {{
+                    const checkId = item.getAttribute('data-checkid');
+                    if (checkId) {{
+                        const isChecked = localStorage.getItem('chk_' + checkId) === 'true';
+                        if (isChecked) {{
+                            item.classList.add('checked');
+                        }}
+                    }}
+                }});
+            }}
+
+            function toggleCheck(itemElement) {{ 
+                itemElement.classList.toggle('checked'); 
+                const checkId = itemElement.getAttribute('data-checkid');
+                if (checkId) {{
+                    localStorage.setItem('chk_' + checkId, itemElement.classList.contains('checked'));
+                }}
+            }}
 
             const coords = {{
                 "布拉格": {{lat: 50.088, lon: 14.42}}, "維也納": {{lat: 48.208, lon: 16.37}},
@@ -722,13 +795,13 @@ def fetch_trello_data():
                 "布達佩斯": {{lat: 47.497, lon: 19.04}}, "庫倫洛夫": {{lat: 48.812, lon: 14.31}},
                 "CK": {{lat: 48.812, lon: 14.31}}, "國王湖": {{lat: 47.588, lon: 12.98}}, "慕尼黑": {{lat: 48.135, lon: 11.58}}
             }};
-            
+
             function getWeatherEmoji(code) {{
                 if(code === 0) return "☀️"; if(code <= 3) return "⛅"; if(code <= 48) return "🌫️";
                 if(code <= 67) return "🌧️"; if(code <= 77) return "❄️"; if(code <= 82) return "🌨️";
                 if(code >= 95) return "⛈️"; return "🌡️";
             }}
-            
+
             function updateWeatherBadge(badgeElement, targetCoord, dateStr) {{
                 if (!targetCoord || !badgeElement) return;
                 fetch(`https://api.open-meteo.com/v1/forecast?latitude=${{targetCoord.lat}}&longitude=${{targetCoord.lon}}&daily=weathercode,temperature_2m_max,precipitation_probability_max&timezone=auto&forecast_days=16`)
@@ -773,7 +846,7 @@ def fetch_trello_data():
                 let badge = day.querySelector('.weather-badge');
                 if (targetCoord && badge) updateWeatherBadge(badge, targetCoord, dateStr);
             }});
-            
+
             function updateJourneyWeather(cityName) {{
                 let targetCoord = coords[cityName];
                 let journeyBadge = document.getElementById('journey-weather');
@@ -803,13 +876,13 @@ def fetch_trello_data():
                     clearInterval(timerInterval);
                     cdMode.style.display = 'none';
                     journeyMode.style.display = 'flex';
-                    
+
                     let hour = now.getHours();
                     let greeting = "✨ 盡情享受專屬旅程！";
                     if (hour >= 5 && hour < 12) greeting = "☕ 早安！今天也是充滿期待的一天";
                     else if (hour >= 12 && hour < 18) greeting = "☀️ 午安！盡情享受美好的午後時光";
                     else if (hour >= 18 || hour < 5) greeting = "🌙 晚安！辛苦了，回飯店好好休息吧";
-                    
+
                     document.getElementById('journey-greeting').innerText = greeting;
                     document.getElementById('journey-location').innerText = currentActiveCity;
                     updateJourneyWeather(currentActiveCity);
@@ -825,6 +898,8 @@ def fetch_trello_data():
             let currentFormula = "";
             let rates = {{ 'EUR': 34.50, 'CZK': 1.35, 'HUF': 0.088 }};
             let isResult = false;
+            let calcMode = 'TO_TWD'; 
+
             fetch('https://open.er-api.com/v6/latest/TWD')
                 .then(res => res.json())
                 .then(data => {{
@@ -836,6 +911,31 @@ def fetch_trello_data():
                 }}).catch(() => {{
                     document.getElementById('rate-hint').innerHTML = `<span class="dot offline"></span>無網路，使用預設匯率`;
                 }});
+
+            function toggleCalcMode() {{
+                calcMode = calcMode === 'TO_TWD' ? 'TO_FOREIGN' : 'TO_TWD';
+                let toggleBtn = document.querySelector('.mode-toggle');
+                toggleBtn.innerText = calcMode === 'TO_TWD' ? '🔄 換算台幣' : '🔄 換算外幣';
+                currentFormula = "";
+                document.getElementById('calc-foreign').innerText = "0";
+                document.getElementById('calc-formula').innerText = "";
+                updateCalc();
+            }}
+
+            function pressQuickAdd(val) {{
+                if (currentFormula === "" || isResult) {{
+                    currentFormula = val.toString();
+                }} else {{
+                    if (['+', '-', '*', '/'].includes(currentFormula.slice(-1))) {{
+                        currentFormula += val.toString();
+                    }} else {{
+                        currentFormula += "+" + val.toString();
+                    }}
+                }}
+                isResult = false;
+                document.getElementById('calc-foreign').innerText = currentFormula;
+                updateCalc();
+            }}
 
             function pressKey(key) {{
                 let formulaDiv = document.getElementById('calc-formula');
@@ -863,7 +963,7 @@ def fetch_trello_data():
                     isResult = false;
                     displayDiv.innerText = currentFormula;
                 }}
-                if(currentFormula.length > 12) {{ displayDiv.style.fontSize = "30px"; }} else {{ displayDiv.style.fontSize = "42px"; }}
+                if(currentFormula.length > 12) {{ displayDiv.style.fontSize = "30px"; }} else {{ displayDiv.style.fontSize = "40px"; }}
                 updateCalc();
             }}
 
@@ -874,8 +974,22 @@ def fetch_trello_data():
                     try {{ valToCalc = Function('"use strict";return (' + currentFormula + ')')(); if(!isFinite(valToCalc)) valToCalc = 0; }} 
                     catch (e) {{ valToCalc = 0; }}
                 }}
-                let twd = valToCalc * rates[cur];
-                document.getElementById('calc-twd').innerText = '≈ NT$ ' + twd.toLocaleString('en-US', {{maximumFractionDigits: 0}});
+
+                let rate = rates[cur];
+                let inputSymbol = document.getElementById('input-symbol');
+                let outputBadge = document.getElementById('calc-twd');
+
+                if (calcMode === 'TO_TWD') {{
+                    let symbol = cur === 'EUR' ? '€' : (cur === 'CZK' ? 'Kč' : 'Ft');
+                    inputSymbol.innerText = symbol;
+                    let twd = valToCalc * rate;
+                    outputBadge.innerText = '≈ NT$ ' + twd.toLocaleString('en-US', {{maximumFractionDigits: 0}});
+                }} else {{
+                    inputSymbol.innerText = 'NT$';
+                    let foreign = valToCalc / rate;
+                    outputBadge.innerText = `≈ ${{cur}} ` + foreign.toLocaleString('en-US', {{maximumFractionDigits: 2}});
+                }}
+
                 let curStatus = document.getElementById('rate-hint').innerHTML.includes('即時') ? '即時' : '預設';
                 let dotClass = curStatus === '即時' ? 'dot' : 'dot offline';
                 document.getElementById('rate-hint').innerHTML = `<span class="${{dotClass}}"></span>${{curStatus}}匯率: 1 ${{cur}} ≈ ${{rates[cur].toFixed(2)}} TWD`;
@@ -886,12 +1000,14 @@ def fetch_trello_data():
                 if(firstActiveDay) {{
                     applyTheme(firstActiveDay.getAttribute('data-country') || 'DEFAULT');
                 }}
+                loadChecklistState();
             }});
         </script>
     </body>
     </html>
     """
     return html_content
+
 
 # ==========================================
 # 3. Streamlit 渲染
@@ -902,5 +1018,5 @@ with st.spinner('🌍 正在同步最新行程與圖片，請稍候...'):
 components.html(final_html, height=10000, scrolling=False)
 
 if st.button("↻"):
-    fetch_trello_data.clear() 
+    fetch_trello_data.clear()
     st.rerun()
