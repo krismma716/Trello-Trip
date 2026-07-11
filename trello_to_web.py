@@ -72,7 +72,6 @@ def fetch_trello_data():
         if in_list: html_lines.append('</ul>')
         return '<br>'.join(html_lines).replace('</ul><br>', '</ul>').replace('<br><ul', '<ul')
 
-    # 🔥 終極畫質處理核心
     def get_base64_images(url, is_high_res=False):
         if not url: return None, None
         try:
@@ -84,7 +83,6 @@ def fetch_trello_data():
                 if img.mode in ("RGBA", "P"):
                     img = img.convert("RGB")
                 
-                # 低畫質 (主頁縮圖): 800px
                 img_low = img.copy()
                 img_low.thumbnail((800, 800))
                 buf_low = io.BytesIO()
@@ -94,12 +92,9 @@ def fetch_trello_data():
                 b64_high = None
                 if is_high_res:
                     img_high = img.copy()
-                    # 🚀 拉高至 3000px，並使用最高階的 LANCZOS 演算法保持文字銳利度
                     resample_filter = Image.Resampling.LANCZOS if hasattr(Image, 'Resampling') else Image.ANTIALIAS
                     img_high.thumbnail((3000, 3000), resample_filter)
-                    
                     buf_high = io.BytesIO()
-                    # 🚀 開啟 optimize 並壓低 quality 至 70，讓字體清晰但總容量縮小，完美迴避 iOS 閃退
                     img_high.save(buf_high, format="JPEG", quality=70, optimize=True)
                     b64_high = "data:image/jpeg;base64," + base64.b64encode(buf_high.getvalue()).decode("utf-8")
                 
@@ -214,11 +209,12 @@ def fetch_trello_data():
                     b64_low, b64_high = base64_cache.get(img_url, (None, None))
                     if b64_low:
                         if "行程總覽" in card_name and b64_high:
+                            # 💡 修改點 1: 提示文字改為簡短的 "🔍 放大"
                             img_html = f'''
                             <div class="img-wrapper" onclick="openModal(this, event);">
                                 <img src="{b64_low}" class="card-cover-img" loading="lazy">
                                 <img src="{b64_high}" class="high-res-source" style="display:none;">
-                                <div class="zoom-hint">🔍 點擊看高清大圖</div>
+                                <div class="zoom-hint">🔍 放大</div>
                             </div>
                             '''
                         else:
@@ -385,8 +381,9 @@ def fetch_trello_data():
             .card-list {{ display: flex; flex-direction: column; gap: 20px; }}
             .ios-card {{ background: #FFFFFF; border-radius: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.03); overflow: hidden; border: 1px solid var(--border-color); }}
             
+            /* 💡 修改點 1: 卡片右下角的提示縮小、底色變淡、不擋字 */
             .img-wrapper {{ position: relative; cursor: pointer; border-bottom: 1px solid var(--border-color); -webkit-tap-highlight-color: transparent; }}
-            .zoom-hint {{ position: absolute; bottom: 12px; right: 12px; background: rgba(0,0,0,0.75); color: white; padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: 800; pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.5px; box-shadow: 0 4px 10px rgba(0,0,0,0.2); }}
+            .zoom-hint {{ position: absolute; bottom: 10px; right: 10px; background: rgba(0,0,0,0.55); color: white; padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 700; pointer-events: none; backdrop-filter: blur(4px); letter-spacing: 0.5px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }}
             .card-cover-img {{ width: 100%; height: auto; max-height: 350px; object-fit: contain; display: block; background-color: #FFFFFF; }}
             
             .card-header {{ padding: 20px; display: flex; justify-content: space-between; align-items: center; }}
@@ -444,17 +441,18 @@ def fetch_trello_data():
             .dot {{ display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: #10B981; margin-right: 6px; vertical-align: middle; box-shadow: 0 0 6px rgba(16, 185, 129, 0.5); }}
             .dot.offline {{ background: #F59E0B; box-shadow: 0 0 6px rgba(245, 158, 11, 0.5); }}
             
-            /* 🔥 [極致放大版] 放寬到 400vw，讓 3000px 的細節一覽無遺！ */
             .image-modal {{ position: fixed; top: 0; left: 0; width: 100vw; height: 100dvh; background: rgba(0,0,0,0.95); z-index: 9999999; display: none; backdrop-filter: blur(8px); }}
             .image-modal.show {{ display: block; }}
-            .close-btn {{ position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px; width: 44px; height: 44px; background: rgba(255,255,255,0.25); border-radius: 50%; color: white; display: flex; justify-content: center; align-items: center; font-size: 20px; z-index: 999; cursor: pointer; backdrop-filter: blur(4px); }}
+            
+            /* 💡 修改點 2: 右上角叉叉縮小、變半透明黑、更低調 */
+            .close-btn {{ position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px; width: 32px; height: 32px; background: rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); border-radius: 50%; color: white; display: flex; justify-content: center; align-items: center; font-size: 16px; z-index: 999; cursor: pointer; backdrop-filter: blur(4px); }}
+            
             .modal-content {{ width: 100%; height: 100%; overflow: auto; -webkit-overflow-scrolling: touch; display: block; }}
             .modal-img {{ display: block; margin: auto; max-width: 100vw; width: 100%; height: auto; cursor: zoom-in; transition: all 0.3s ease; }}
-            
-            /* 讓寬度可以放大到螢幕的 4倍 */
             .modal-img.zoomed {{ max-width: none; width: 400vw; cursor: zoom-out; margin: 0; }}
             
-            .modal-hint {{ position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.75); padding: 10px 20px; border-radius: 20px; font-size: 14px; font-weight: 800; pointer-events: none; z-index: 100; transition: opacity 0.3s; letter-spacing: 0.5px; }}
+            /* 💡 修改點 3: 底部提示字縮小 */
+            .modal-hint {{ position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%); color: white; background: rgba(0,0,0,0.6); padding: 6px 16px; border-radius: 20px; font-size: 12px; font-weight: 700; pointer-events: none; z-index: 100; transition: opacity 0.3s; letter-spacing: 0.5px; }}
             .modal-img.zoomed ~ .modal-hint {{ opacity: 0; }}
         </style>
     </head>
@@ -549,7 +547,7 @@ def fetch_trello_data():
             <div class="close-btn" onclick="closeModal(event)">✕</div>
             <div class="modal-content" id="modal-scroll-area">
                 <img id="modal-img" class="modal-img" src="" onclick="toggleZoom(event)">
-                <div class="modal-hint" id="modal-hint">點擊圖片放大 👆</div>
+                <div class="modal-hint" id="modal-hint">👆 點擊放大</div>
             </div>
         </div>
 
